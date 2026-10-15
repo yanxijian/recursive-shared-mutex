@@ -10,17 +10,34 @@
 // Exclusive: atomic owner id + owner-only counters on the instance.
 // Shared recursion: a per-thread table of POD slots keyed by the mutex
 //   address (constant-initialized thread_local: no heap allocation, no
-//   thread_local destructor). A reused mutex address starts from a free
-//   slot, so it can never fake re-entrancy.
-//   NOTE: do NOT replace this with a heap-allocated thread_local list whose
-//   destructor frees nodes at thread exit. On MinGW-w64 GCC 13.2
-//   (ucrt/posix, emutls) that reliably corrupts the heap on the
-//   LdrShutdownThread path (verified with gdb: SIGSEGV inside RtlFreeHeap
-//   while running thread-exit TLS destructors).
+//   thread_local destructor). INVARIANT: active slots are dense in
+//   [0, used) and every active slot has depth > 0 (unlock-to-zero recycles
+//   the slot via swap-with-last compaction; the destructor path does too).
+//   Free capacity is slots[used]. A reused mutex address starts from a
+//   free slot, so it can never fake re-entrancy.
+//   NOTE: do NOT add any design that frees heap memory inside a
+//   thread_local destructor. On MinGW-w64 GCC 13.2 (ucrt/posix, emutls)
+//   that corrupts the heap on the LdrShutdownThread path (verified with
+//   gdb: SIGSEGV inside RtlFreeHeap during thread-exit TLS destructors).
+// POINTER-STABILITY RED LINE: findActiveSlot() returns a pointer into the
+//   calling thread's TLS table, and lock_shared()/try_lock_shared() keep
+//   using it across the BLOCKING mtx_.lock_shared() call. Safe only
+//   because a blocked call suspends the whole thread: nothing can mutate
+//   this table while the pointer is held, and no other thread can ever
+//   touch it. Any change allowing table mutation between findActiveSlot()
+//   and the last use of the pointer (callbacks, coroutines resuming on
+//   this thread, moving state out of TLS) breaks this silently.
 // Cross-module note: the slot table lives in every module that includes
 //   this header. A mutex whose lock_shared/unlock_shared sequence crosses
 //   a DLL/EXE boundary must stay within one module's TLS domain; if that
 //   cannot be guaranteed, host the TLS state in a single exported module.
+// ESCAPE VALVE: intentionally NOT provided. A release_shared_unchecked()
+//   that skips TLS accounting would leave the owner's slot at {key,
+//   depth=1}; any later RAII unwinding on the owner would then release the
+//   underlying lock a second time - unowned release = UB / heap corruption.
+//   It may only ever be used when the owner is guaranteed to never touch
+//   the mutex again. Recovery for stranded slots is "homed unlock" - see
+//   docs/migration.md.
 
 namespace rsm
 {
@@ -46,14 +63,14 @@ namespace rsm
 
 		~RecursiveSharedMutex()
 		{
-			// Recycle this thread's slot early. Per the "never destroy while
-			// locked" contract the depth must be zero here; other threads
-			// recycle their own slots on their next unlock-to-zero.
-			SharedDepthSlot* slot = findSharedSlot();
-			if (slot != nullptr && slot->key == this)
+			// Defensive: per the "never destroy while locked" contract no
+			// active slot should remain; compact if one does.
+			SharedDepthSlot* slot = findActiveSlot();
+			if (slot != nullptr)
 			{
-				slot->key = nullptr;
-				slot->depth = 0;
+				SharedSlotTable& table = slotTable();
+				*slot = table.slots[table.used - 1];
+				--table.used;
 			}
 		}
 
@@ -133,20 +150,14 @@ namespace rsm
 				return;
 			}
 
-			SharedDepthSlot* slot = findSharedSlot();
-			if (slot != nullptr && slot->key == this)
+			SharedDepthSlot* slot = findActiveSlot();
+			if (slot != nullptr)
 			{
-				if (slot->depth > 0)
-				{
-					++slot->depth;
-					return;
-				}
-				// Reuse this slot for a fresh acquisition.
-				mtx_.lock_shared();
-				slot->depth = 1;
+				++slot->depth; // an active slot always has depth > 0
 				return;
 			}
-			if (slot == nullptr)
+			SharedSlotTable& table = slotTable();
+			if (table.used >= kSharedSlotCount)
 			{
 				// Fail BEFORE touching the underlying lock so the error can
 				// never strand a shared slot.
@@ -157,9 +168,12 @@ namespace rsm
 #ifdef RSM_ENABLE_TEST_HOOKS
 			injectSharedAcquireFailure();
 #endif
+			// Table cannot change while this thread is blocked (see
+			// POINTER-STABILITY RED LINE above).
 			mtx_.lock_shared();
-			slot->key = this;
-			slot->depth = 1;
+			table.slots[table.used].key = this;
+			table.slots[table.used].depth = 1;
+			++table.used;
 		}
 
 		bool try_lock_shared()
@@ -170,22 +184,14 @@ namespace rsm
 				return true;
 			}
 
-			SharedDepthSlot* slot = findSharedSlot();
-			if (slot != nullptr && slot->key == this)
+			SharedDepthSlot* slot = findActiveSlot();
+			if (slot != nullptr)
 			{
-				if (slot->depth > 0)
-				{
-					++slot->depth;
-					return true;
-				}
-				if (!mtx_.try_lock_shared())
-				{
-					return false;
-				}
-				slot->depth = 1;
+				++slot->depth;
 				return true;
 			}
-			if (slot == nullptr)
+			SharedSlotTable& table = slotTable();
+			if (table.used >= kSharedSlotCount)
 			{
 				throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
 				                        "RecursiveSharedMutex: per-thread shared slot table exhausted");
@@ -198,8 +204,9 @@ namespace rsm
 			{
 				return false;
 			}
-			slot->key = this;
-			slot->depth = 1;
+			table.slots[table.used].key = this;
+			table.slots[table.used].depth = 1;
+			++table.used;
 			return true;
 		}
 
@@ -211,8 +218,8 @@ namespace rsm
 				return;
 			}
 
-			SharedDepthSlot* slot = findSharedSlot();
-			if (slot == nullptr || slot->key != this || slot->depth <= 0)
+			SharedDepthSlot* slot = findActiveSlot();
+			if (slot == nullptr || slot->depth <= 0)
 			{
 				throw std::system_error(std::make_error_code(std::errc::operation_not_permitted),
 				                        "RecursiveSharedMutex::unlock_shared without shared ownership");
@@ -222,8 +229,10 @@ namespace rsm
 				--slot->depth;
 				return;
 			}
-			slot->key = nullptr;
-			slot->depth = 0;
+			// Recycle: keep active slots dense in [0, used).
+			SharedSlotTable& table = slotTable();
+			*slot = table.slots[table.used - 1];
+			--table.used;
 			mtx_.unlock_shared();
 		}
 
@@ -234,12 +243,12 @@ namespace rsm
 			int depth;
 		};
 
-		// Constant-initialized POD table: no dynamic init, no destructor, no
-		// per-node heap allocation. See the file-header note on why freeing
-		// memory inside a thread_local destructor must be avoided.
+		// Constant-initialized POD table, no destructor (see header INVARIANT
+		// and NOTE); active slots are dense in [0, used).
 		struct SharedSlotTable
 		{
 			SharedDepthSlot slots[kSharedSlotCount] = {};
+			std::size_t used = 0;
 		};
 
 		static SharedSlotTable& slotTable()
@@ -259,31 +268,26 @@ namespace rsm
 		}
 #endif
 
-		// Returns the slot tracked for this mutex, otherwise a free slot,
-		// otherwise nullptr when the table is full. Callers distinguish the
-		// cases via slot->key.
-		SharedDepthSlot* findSharedSlot() const
+		// Returns the active slot tracked for this mutex, or nullptr when the
+		// mutex has no slot on this thread. Free capacity is slots[used].
+		SharedDepthSlot* findActiveSlot() const
 		{
-			SharedDepthSlot* freeSlot = nullptr;
 			SharedDepthSlot* table = slotTable().slots;
-			for (std::size_t i = 0; i < kSharedSlotCount; ++i)
+			const std::size_t used = slotTable().used;
+			for (std::size_t i = 0; i < used; ++i)
 			{
 				if (table[i].key == this)
 				{
 					return &table[i];
 				}
-				if (table[i].key == nullptr && freeSlot == nullptr)
-				{
-					freeSlot = &table[i];
-				}
 			}
-			return freeSlot;
+			return nullptr;
 		}
 
 		int sharedDepthValue() const
 		{
-			const SharedDepthSlot* slot = findSharedSlot();
-			return (slot != nullptr && slot->key == this) ? slot->depth : 0;
+			const SharedDepthSlot* slot = findActiveSlot();
+			return slot != nullptr ? slot->depth : 0;
 		}
 
 		std::shared_mutex mtx_;
