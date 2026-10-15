@@ -230,7 +230,7 @@ namespace rsm
 	private:
 		struct SharedDepthSlot
 		{
-			const RecursiveSharedMutex* key;   // nullptr = free slot
+			const RecursiveSharedMutex* key; // nullptr = free slot
 			int depth;
 		};
 

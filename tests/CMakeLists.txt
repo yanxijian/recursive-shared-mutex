@@ -20,8 +20,8 @@ target_link_libraries(rsm_tests
 		Catch2::Catch2WithMain
 )
 
-# Test-only instrumentation (live TLS node count, scan-step counter) inside
-# the header; compiled out for normal consumers.
+# Test-only failure-injection hook (fail_next_shared_acquire) inside the
+# header; compiled out for normal consumers.
 target_compile_definitions(rsm_tests PRIVATE RSM_ENABLE_TEST_HOOKS=1)
 
 include(Catch)

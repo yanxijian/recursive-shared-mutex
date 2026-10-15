@@ -319,7 +319,7 @@ TEST_CASE("shared slots are recycled after unlock and the cap is enforced", "[tl
 	after.unlock_shared();
 }
 
-TEST_CASE("try_lock_shared acquire failure leaves no node and no slot", "[exception][E5]")
+TEST_CASE("try_lock_shared acquire failure does not strand the shared slot", "[exception][E5]")
 {
 	RecursiveSharedMutex mtx;
 	std::atomic<bool> ready{false};

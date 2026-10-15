@@ -94,7 +94,7 @@ See [docs/migration.md](docs/migration.md) for the migration guide and test matr
 ## Limitations
 
 - The per-thread TLS slot table is per-module (header-only): keep one mutex's `lock_shared`/`unlock_shared` sequence within a single module's TLS domain when DLLs/EXE boundaries are involved, or host the TLS state in a single exported module.
-- At most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread; the next `lock_shared` throws `resource_unavailable_try_again`. Slots recycle on unlock, so sequentially touching any number of mutexes is fine.
+- At most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread; the next `lock_shared` throws `resource_unavailable_try_again`. Slots recycle on unlock, so sequentially touching any number of mutexes is fine. Note that `try_lock_shared` also throws on a full table (it only returns `false` on contention) — unlike the usual `try_*` convention.
 - No lock upgrade (shared → exclusive): `lock()` throws `resource_deadlock_would_occur` by design; audit read-then-write call chains before moving readers to `shared_lock`.
 - `std::shared_mutex` underneath has no writer preference: writers may starve under continuous readers (see benchmarks S1/S5).
 
