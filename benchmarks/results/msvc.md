@@ -1,5 +1,6 @@
 ﻿# Benchmark results: MSVC
 
+- Measured against: **v0.2.0** (pre-densification slot table) — re-measure with MSVC for v0.2.1; the densification removes the per-op full-table scan, so the exclusive-only (S7) and mixed scenarios should improve
 - Dataset: 1,048,576 x uint32 (~4 MiB)
 - Nested reenter depth: 3 (outer `try_*` + 2)
 - Read window 24 / write window 12

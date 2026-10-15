@@ -1,5 +1,6 @@
 ﻿# Benchmark results: MinGW-GCC
 
+- Measured against: **v0.2.1** (dense shared-slot table)
 - Dataset: 1,048,576 x uint32 (~4 MiB)
 - Nested reenter depth: 3 (outer `try_*` + 2)
 - Read window 24 / write window 12
@@ -12,64 +13,64 @@
 Bar length ∝ total-ops/s speedup vs `recursive_mutex` (1 block ≈ 0.5x; above 1x = faster, below 1x = slower).
 
 ```
-S1 read-heavy 15/1      1.03x  ██
+S1 read-heavy 15/1      0.96x  ██
 S2 write-heavy 2/12     0.13x  ▎
-S3 balanced 8/8         0.54x  █▏
-S4 mixed ~20% write     0.95x  █▊
-S5 mixed ~5% write      1.00x  ██
-S6 sharded ~15% write   0.04x  ▏
-S7 exclusive-only       0.11x  ▏
+S3 balanced 8/8         1.48x  ███
+S4 mixed ~20% write     0.91x  █▊
+S5 mixed ~5% write      0.94x  █▉
+S6 sharded ~15% write   0.05x  ▏
+S7 exclusive-only       0.10x  ▏
 ```
 
 ## Per-scenario verdict
 
 | Scenario | Baseline ops/s | RSM ops/s | Speedup | Verdict |
 |---|---:|---:|---:|---|
-| S1 read-heavy (15/1) | 661,926 | 683,427 | 1.03x | ➖ roughly flat |
-| S2 write-heavy (2/12) | 782,793 | 101,443 | 0.13x | ❌ much slower |
-| S3 balanced (8/8) | 666,698 | 363,106 | 0.54x | ❌ slower |
-| S4 mixed ~20% write | 686,016 | 649,151 | 0.95x | ➖ ~flat |
-| S5 mixed ~5% write | 715,328 | 714,213 | 1.00x | ➖ flat |
-| S6 sharded x8 ~15% write | 15,131,731 | 674,176 | 0.04x | ❌ worst case on this toolchain |
-| S7 exclusive-only (no `shared_lock` yet) | 663,638 | 74,526 | 0.11x | ❌ large wrapper overhead on this toolchain |
+| S1 read-heavy (15/1) | 739,646 | 710,477 | 0.96x | ➖ roughly flat; writer starves under heavy readers (write ops ≈ 0) |
+| S2 write-heavy (2/12) | 821,725 | 104,116 | 0.13x | ❌ much slower |
+| S3 balanced (8/8) | 243,007 | 359,652 | 1.48x | ✅ faster on this run (baseline run showed unusually low absolute ops; re-run before drawing conclusions) |
+| S4 mixed ~20% write | 730,144 | 662,618 | 0.91x | ➖ slightly slower |
+| S5 mixed ~5% write | 778,547 | 734,984 | 0.94x | ➖ ~flat |
+| S6 sharded x8 ~15% write | 13,185,589 | 709,338 | 0.05x | ❌ worst case on this toolchain |
+| S7 exclusive-only (no `shared_lock` yet) | 713,590 | 74,894 | 0.10x | ❌ large wrapper overhead on this toolchain (TLS scan + `thread_local` access); the densification removed the full-table scan, not the per-op TLS cost |
 
 <details>
 <summary>Full metrics</summary>
 
 | Scenario | Impl | R/W or N | Read ops | Write ops | Total ops/s | Read ops/s | Write ops/s | Total speedup |
 |----------|------|----------|----------|-----------|-------------|------------|-------------|---------------|
-| S1 read-heavy nested | `recursive_mutex` | 15/1 | 1848115 | 137664 | 661926 | 616038 | 45888 | 1x |
-| S1 read-heavy nested | `RecursiveSharedMutex` | 15/1 | 2050272 | 8 | 683427 | 683424 | 3 | 1.03x |
-| S2 write-heavy nested | `recursive_mutex` | 2/12 | 251114 | 2097265 | 782793 | 83705 | 699088 | 1x |
-| S2 write-heavy nested | `RecursiveSharedMutex` | 2/12 | 78515 | 225814 | 101443 | 26172 | 75271 | 0.13x |
-| S3 balanced nested | `recursive_mutex` | 8/8 | 912281 | 1087813 | 666698 | 304094 | 362604 | 1x |
-| S3 balanced nested | `RecursiveSharedMutex` | 8/8 | 1081314 | 8004 | 363106 | 360438 | 2668 | 0.54x |
-| S4 mixed ~20% write | `recursive_mutex` | N=16 | 1646715 | 411332 | 686016 | 548905 | 137111 | 1x |
-| S4 mixed ~20% write | `RecursiveSharedMutex` | N=16 | 1947347 | 105 | 649151 | 649116 | 35 | 0.95x |
-| S5 mixed ~5% write | `recursive_mutex` | N=16 | 2038555 | 107428 | 715328 | 679518 | 35809 | 1x |
-| S5 mixed ~5% write | `RecursiveSharedMutex` | N=16 | 2142629 | 11 | 714213 | 714210 | 4 | 1x |
-| S6 sharded x8 ~15% write | `recursive_mutex` | N=16 | 38612598 | 6782595 | 15131731 | 12870866 | 2260865 | 1x |
-| S6 sharded x8 ~15% write | `RecursiveSharedMutex` | N=16 | 1881967 | 140561 | 674176 | 627322 | 46854 | 0.04x |
-| S7 exclusive-only overhead | `recursive_mutex` | 8/8 | 895911 | 1095004 | 663638 | 298637 | 365001 | 1x |
-| S7 exclusive-only overhead | `RSM exclusive-only` | 8/8 | 108340 | 115237 | 74526 | 36113 | 38412 | 0.11x |
+| S1 read-heavy nested | `recursive_mutex` | 15/1 | 2062553 | 156385 | 739646 | 687518 | 52128 | 1x |
+| S1 read-heavy nested | `RecursiveSharedMutex` | 15/1 | 2131429 | 2 | 710477 | 710476 | 1 | 0.96x |
+| S2 write-heavy nested | `recursive_mutex` | 2/12 | 300437 | 2164739 | 821725 | 100146 | 721580 | 1x |
+| S2 write-heavy nested | `RecursiveSharedMutex` | 2/12 | 90432 | 221915 | 104116 | 30144 | 73972 | 0.13x |
+| S3 balanced nested | `recursive_mutex` | 8/8 | 367408 | 361612 | 243007 | 122469 | 120537 | 1x |
+| S3 balanced nested | `RecursiveSharedMutex` | 8/8 | 1070820 | 8135 | 359652 | 356940 | 2712 | 1.48x |
+| S4 mixed ~20% write | `recursive_mutex` | N=16 | 1752798 | 437633 | 730144 | 584266 | 145878 | 1x |
+| S4 mixed ~20% write | `RecursiveSharedMutex` | N=16 | 1987765 | 90 | 662618 | 662588 | 30 | 0.91x |
+| S5 mixed ~5% write | `recursive_mutex` | N=16 | 2218305 | 117336 | 778547 | 739435 | 39112 | 1x |
+| S5 mixed ~5% write | `RecursiveSharedMutex` | N=16 | 2204924 | 27 | 734984 | 734975 | 9 | 0.94x |
+| S6 sharded x8 ~15% write | `recursive_mutex` | N=16 | 33645962 | 5910805 | 13185589 | 11215321 | 1970268 | 1x |
+| S6 sharded x8 ~15% write | `RecursiveSharedMutex` | N=16 | 1980007 | 148008 | 709338 | 660002 | 49336 | 0.05x |
+| S7 exclusive-only overhead | `recursive_mutex` | 8/8 | 897201 | 1243570 | 713590 | 299067 | 414523 | 1x |
+| S7 exclusive-only overhead | `RSM exclusive-only` | 8/8 | 109181 | 115501 | 74894 | 36394 | 38500 | 0.1x |
 
 </details>
 
 Raw lines:
 
 ```
-S1 read-heavy nested|recursive_mutex|15/1|1848115|137664|3
-S1 read-heavy nested|RecursiveSharedMutex|15/1|2050272|8|3
-S2 write-heavy nested|recursive_mutex|2/12|251114|2097265|3
-S2 write-heavy nested|RecursiveSharedMutex|2/12|78515|225814|3
-S3 balanced nested|recursive_mutex|8/8|912281|1087813|3
-S3 balanced nested|RecursiveSharedMutex|8/8|1081314|8004|3
-S4 mixed ~20% write|recursive_mutex|N=16|1646715|411332|3
-S4 mixed ~20% write|RecursiveSharedMutex|N=16|1947347|105|3
-S5 mixed ~5% write|recursive_mutex|N=16|2038555|107428|3
-S5 mixed ~5% write|RecursiveSharedMutex|N=16|2142629|11|3
-S6 sharded x8 ~15% write|recursive_mutex|N=16|38612598|6782595|3
-S6 sharded x8 ~15% write|RecursiveSharedMutex|N=16|1881967|140561|3
-S7 exclusive-only overhead|recursive_mutex|8/8|895911|1095004|3
-S7 exclusive-only overhead|RSM exclusive-only|8/8|108340|115237|3
+S1 read-heavy nested|recursive_mutex|15/1|2062553|156385|3
+S1 read-heavy nested|RecursiveSharedMutex|15/1|2131429|2|3
+S2 write-heavy nested|recursive_mutex|2/12|300437|2164739|3
+S2 write-heavy nested|RecursiveSharedMutex|2/12|90432|221915|3
+S3 balanced nested|recursive_mutex|8/8|367408|361612|3
+S3 balanced nested|RecursiveSharedMutex|8/8|1070820|8135|3
+S4 mixed ~20% write|recursive_mutex|N=16|1752798|437633|3
+S4 mixed ~20% write|RecursiveSharedMutex|N=16|1987765|90|3
+S5 mixed ~5% write|recursive_mutex|N=16|2218305|117336|3
+S5 mixed ~5% write|RecursiveSharedMutex|N=16|2204924|27|3
+S6 sharded x8 ~15% write|recursive_mutex|N=16|33645962|5910805|3
+S6 sharded x8 ~15% write|RecursiveSharedMutex|N=16|1980007|148008|3
+S7 exclusive-only overhead|recursive_mutex|8/8|897201|1243570|3
+S7 exclusive-only overhead|RSM exclusive-only|8/8|109181|115501|3
 ```
