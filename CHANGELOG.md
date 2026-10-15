@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-16
+
 ### Fixed
 
 - Shared-recursion TLS state is now keyed by the mutex address instead of a per-module `id_` counter: the inline per-instance counter was duplicated per DLL/EXE, so mutexes created in different modules could collide on the same `id_` and fake re-entrancy across locks.
@@ -17,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Cross-module (DLL/EXE) constraint documented: a single mutex's `lock_shared`/`unlock_shared` sequence must stay within one module's TLS domain, or the TLS state must be hosted in a single exported module (`docs/migration.md`).
 - Migration hard rules expanded: read-then-write audit is now a hard gate before moving readers to `shared_lock`; writer starvation of `std::shared_mutex` is documented as a first-class risk.
+- `try_lock_shared` throws `resource_unavailable_try_again` when the per-thread slot table is full (it only returns `false` on contention), unlike the usual `try_*` convention.
 
 ### Added
 
@@ -35,5 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI (Windows / Ubuntu / macOS)
 - MIT license and standard community health files
 
-[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/yanxijian/recursive-shared-mutex/releases/tag/v0.2.0
 [0.1.0]: https://github.com/yanxijian/recursive-shared-mutex/releases/tag/v0.1.0

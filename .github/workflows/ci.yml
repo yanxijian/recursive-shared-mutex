@@ -35,3 +35,21 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure --timeout 120
+
+  clang-format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+
+      - name: Check formatting
+        run: >
+          clang-format --dry-run -Werror
+          include/recursive_shared_mutex/recursive_shared_mutex.hpp
+          tests/test_recursive_shared_mutex.cpp
+          examples/basic_usage.cpp
+          benchmarks/bench_vs_recursive_mutex.cpp
