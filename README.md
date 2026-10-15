@@ -63,7 +63,7 @@ include(FetchContent)
 FetchContent_Declare(
   recursive_shared_mutex
   GIT_REPOSITORY https://github.com/yanxijian/recursive-shared-mutex.git
-  GIT_TAG v0.2.0
+  GIT_TAG v0.2.1
 )
 FetchContent_MakeAvailable(recursive_shared_mutex)
 target_link_libraries(your_target PRIVATE rsm::recursive_shared_mutex)

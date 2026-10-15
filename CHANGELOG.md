@@ -7,11 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.2.1] - 2026-10-16
+
 ### Performance
 
 - The per-thread shared-slot table now keeps active slots dense in `[0, used)` with swap-with-last compaction on unlock-to-zero (and in the defensive destructor path). `findActiveSlot` scans only the active prefix, so threads holding no shared slots skip the scan entirely; the `depth == 0` slot-reuse branch became unreachable and was removed.
 - Measured on MinGW-w64 GCC 13.2 (UCRT): exclusive `lock()+unlock()` 365.6 → 108.6 ns/pair (**3.4×**), cold shared acquire/release churn 367.1 → 152.6 ns/pair (**2.4×**). Semantics verified unchanged by the full boundary suite (1051 checks) and the test matrix.
 - The dense-slot invariant and the POINTER-STABILITY red line (slot pointers are used across the blocking `mtx_.lock_shared()` call; safe only because a blocked call suspends the whole thread) are documented in the header. The rejected `release_shared_unchecked()` escape valve (unowned double-release UB hazard) is documented in `docs/migration.md`.
+
 ## [0.2.0] - 2026-10-16
 
 ### Fixed
@@ -43,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI (Windows / Ubuntu / macOS)
 - MIT license and standard community health files
 
-[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.1...HEAD
+[v0.2.1]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/yanxijian/recursive-shared-mutex/releases/tag/v0.2.0
 [0.1.0]: https://github.com/yanxijian/recursive-shared-mutex/releases/tag/v0.1.0
