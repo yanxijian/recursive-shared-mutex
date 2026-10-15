@@ -53,6 +53,13 @@ building one TU with `-std=c++20` shows the notice, `-std=c++17` shows none.
 
 ## R2 - Writer-starvation observability (short term, consuming project)
 
+Status: **library-side landed** (v0.2.1+): opt-in
+`recursive_shared_mutex/instrumented_write_lock.hpp` provides the RAII guard,
+the `Recorder` sink interface, and a built-in `AtomicStatsRecorder`
+(count/total/max, atomics only). Zero cost when no recorder is installed.
+The remaining R2 work lives in the consuming project: bridge the `Recorder`
+to the metrics stack and alert on p99 write-wait.
+
 Empirical basis: MinGW bench S1/S5 writer throughput collapses to single
 digits under read pressure; glibc `pthread_rwlock` defaults to
 `PTHREAD_RWLOCK_PREFER_READER_NP`, so Linux production is equally exposed.

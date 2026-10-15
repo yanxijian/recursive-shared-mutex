@@ -20,9 +20,19 @@ target_link_libraries(rsm_tests
 		Catch2::Catch2WithMain
 )
 
+add_executable(rsm_metrics_tests
+	test_instrumented_write_lock.cpp
+)
+target_link_libraries(rsm_metrics_tests
+	PRIVATE
+		rsm::recursive_shared_mutex
+		Catch2::Catch2WithMain
+)
+
 # Test-only failure-injection hook (fail_next_shared_acquire) inside the
 # header; compiled out for normal consumers.
 target_compile_definitions(rsm_tests PRIVATE RSM_ENABLE_TEST_HOOKS=1)
 
 include(Catch)
 catch_discover_tests(rsm_tests)
+catch_discover_tests(rsm_metrics_tests)

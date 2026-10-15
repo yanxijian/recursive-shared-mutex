@@ -91,6 +91,30 @@ Exclusive recursion uses an atomic owner id on the instance; shared recursion us
 
 See [docs/migration.md](docs/migration.md) for the migration guide and test matrix.
 
+## Writer-starvation observability (R2)
+
+MinGW (and glibc's reader-preferring `pthread_rwlock`) can starve writers under
+read pressure. An optional instrumented guard measures write wait and hold
+times without touching the core component:
+
+```cpp
+#include <recursive_shared_mutex/instrumented_write_lock.hpp>
+
+// Install once at startup (must outlive all guards):
+rsm::metrics::AtomicStatsRecorder stats;
+rsm::metrics::set_recorder(&stats);
+
+// Hot path:
+{
+    rsm::metrics::instrumented_write_lock guard(mtx); // records wait + hold
+    // ... exclusive work ...
+}
+// stats.snapshot() -> feed rsm_write_wait_seconds / rsm_write_hold_seconds
+```
+
+Zero cost when no recorder is installed; see
+`docs/roadmap.md` R2 for the metric/alerting contract.
+
 ## Limitations
 
 - The per-thread TLS slot table is per-module (header-only): keep one mutex's `lock_shared`/`unlock_shared` sequence within a single module's TLS domain when DLLs/EXE boundaries are involved, or host the TLS state in a single exported module.
