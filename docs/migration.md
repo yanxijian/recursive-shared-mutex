@@ -13,10 +13,10 @@ Canonical code: [`include/recursive_shared_mutex/recursive_shared_mutex.hpp`](..
 | Concern | Approach |
 |---------|----------|
 | Exclusive recursion | `std::atomic<std::thread::id> owner_` + owner-only `exclusive_count_` / `under_exclusive_` |
-| Shared recursion | `thread_local` intrusive list keyed by the mutex address (`this`) |
+| Shared recursion | per-thread table of POD slots keyed by the mutex address (`this`), recycled on unlock-to-zero |
 | Upgrade (shared → exclusive) | `lock()` throws `resource_deadlock_would_occur`; `try_lock()` returns `false` |
 
-Shared depth is not stored in `thread_local unordered_map` (allocator path under contended `shared_mutex` is fragile on some MinGW builds). The TLS list is keyed by the mutex address itself: under the "never destroy while locked" contract, address reuse across mutex lifetimes can only inherit depth==0 nodes, which cannot fake re-entrancy. The TLS node is allocated before the underlying shared lock is taken (rolled back if acquisition fails), so `bad_alloc` can never strand a shared slot.
+Shared depth is not stored in `thread_local unordered_map` (allocator path under contended `shared_mutex` is fragile on some MinGW builds) — and not in a heap-allocated `thread_local` list either: freeing nodes inside a `thread_local` destructor reliably corrupts the heap at thread exit on MinGW-w64 GCC 13.2 ucrt/posix (emutls; verified with gdb). The slot table is constant-initialized POD with no destructor and no heap allocation; slots are keyed by the mutex address and recycled when the depth drops to zero, so the working set tracks currently held shared locks, not mutexes ever touched. Acquire failures (table exhausted, or the test hook injecting a failure) are raised BEFORE the underlying lock is taken, so an error can never strand a shared slot.
 
 ## Steps
 
@@ -30,9 +30,10 @@ Shared depth is not stored in `thread_local unordered_map` (allocator path under
 - No lock upgrade (shared then exclusive on the same mutex).
 - No cross-thread unlock (TLS / owner id).
 - Do not destroy a mutex while it is still locked.
-- Cross-module (DLL/EXE) use: the TLS list is per-module. A single mutex's `lock_shared`/`unlock_shared` sequence must stay within one module's TLS domain; if a mutex is called from several modules, host the TLS state in a single exported module instead of relying on the header-only TLS.
+- Cross-module (DLL/EXE) use: the TLS slot table is per-module. A single mutex's `lock_shared`/`unlock_shared` sequence must stay within one module's TLS domain; if a mutex is called from several modules, host the TLS state in a single exported module instead of relying on the header-only TLS.
 - Read-then-write on the same lock serialized under `recursive_mutex` but now throws `resource_deadlock_would_occur`; audit before moving any reader to `shared_lock`.
 - Writer starvation: `std::shared_mutex` has no writer preference. Under continuous readers, writers may starve (see benchmarks S1/S5); add upstream throttling/yielding if writes have latency requirements.
+- Per-thread cap: at most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread; the next one throws `resource_unavailable_try_again`. Slots recycle on unlock, so sequentially touching any number of mutexes is fine.
 
 ## Test matrix
 
@@ -42,5 +43,11 @@ Covered by `tests/test_recursive_shared_mutex.cpp`:
 - M1–M2 multi-instance isolation
 - C1–C2 concurrent readers + writer
 - P1–P2 try paths against foreign holders
+- E1 `lock_shared` injected acquire failure: no shared slot stranded, lock still usable
+- E2 `try_lock_shared` contention fails cleanly, mutex stays usable
+- E3 slot recycling across many mutexes + `kSharedSlotCount` cap enforcement
+- E5 `try_lock_shared` injected acquire failure: symmetric to E1
+
+Failure injection uses the `RSM_ENABLE_TEST_HOOKS`-only `fail_next_shared_acquire` hook defined in the header; tests must not replace the global allocator.
 
 Optional stress: `tests/stress_concurrent.cpp` (manual build).

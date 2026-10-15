@@ -2,21 +2,25 @@
 
 #include <atomic>
 #include <cstddef>
-#include <cstdint>
 #include <shared_mutex>
 #include <system_error>
 #include <thread>
 
 // C++17 header-only recursive shared_mutex.
 // Exclusive: atomic owner id + owner-only counters on the instance.
-// Shared recursion: thread_local intrusive list keyed by the mutex address.
-//   Under the documented "never destroy while locked" contract, address reuse
-//   can only inherit depth==0 nodes, and depth==0 nodes never fake
-//   re-entrancy (lock_shared re-acquires the underlying lock).
-// Cross-module note: the TLS list lives in every module that includes this
-//   header. A mutex whose lock_shared/unlock_shared sequence crosses a
-//   DLL/EXE boundary must stay within one module's TLS domain; if that cannot
-//   be guaranteed, host the TLS state in a single exported module instead.
+// Shared recursion: a per-thread table of POD slots keyed by the mutex
+//   address (constant-initialized thread_local: no heap allocation, no
+//   thread_local destructor). A reused mutex address starts from a free
+//   slot, so it can never fake re-entrancy.
+//   NOTE: do NOT replace this with a heap-allocated thread_local list whose
+//   destructor frees nodes at thread exit. On MinGW-w64 GCC 13.2
+//   (ucrt/posix, emutls) that reliably corrupts the heap on the
+//   LdrShutdownThread path (verified with gdb: SIGSEGV inside RtlFreeHeap
+//   while running thread-exit TLS destructors).
+// Cross-module note: the slot table lives in every module that includes
+//   this header. A mutex whose lock_shared/unlock_shared sequence crosses
+//   a DLL/EXE boundary must stay within one module's TLS domain; if that
+//   cannot be guaranteed, host the TLS state in a single exported module.
 
 namespace rsm
 {
@@ -24,18 +28,33 @@ namespace rsm
 	class RecursiveSharedMutex
 	{
 	public:
+		// Per-thread cap on distinct mutexes tracked for shared recursion.
+		// Slots are recycled as soon as a shared lock depth drops to zero,
+		// so the working set is the number of *currently held* shared locks,
+		// not the number of mutexes ever touched.
+		static constexpr std::size_t kSharedSlotCount = 256;
+
 #ifdef RSM_ENABLE_TEST_HOOKS
-		// Test instrumentation only: live TLS node count and cumulative TLS
-		// list scan steps. Compiled out for normal consumers.
-		inline static std::atomic<std::size_t> live_shared_nodes{0};
-		inline static std::atomic<std::uint64_t> shared_scan_steps{0};
+		// Test-only: one-shot failure injection for the shared slow path.
+		// Fires after the slot lookup but BEFORE the underlying lock is
+		// taken, so a thrown error can never strand a shared slot. Tests
+		// must use this instead of replacing the global allocator.
+		inline static std::atomic<unsigned> fail_next_shared_acquire{0};
 #endif
 
 		RecursiveSharedMutex() = default;
 
 		~RecursiveSharedMutex()
 		{
-			eraseSharedNode(this);
+			// Recycle this thread's slot early. Per the "never destroy while
+			// locked" contract the depth must be zero here; other threads
+			// recycle their own slots on their next unlock-to-zero.
+			SharedDepthSlot* slot = findSharedSlot();
+			if (slot != nullptr && slot->key == this)
+			{
+				slot->key = nullptr;
+				slot->depth = 0;
+			}
 		}
 
 		RecursiveSharedMutex(const RecursiveSharedMutex&) = delete;
@@ -114,36 +133,33 @@ namespace rsm
 				return;
 			}
 
-			int* depth = findSharedDepth();
-			if (depth != nullptr && *depth > 0)
+			SharedDepthSlot* slot = findSharedSlot();
+			if (slot != nullptr && slot->key == this)
 			{
-				++(*depth);
+				if (slot->depth > 0)
+				{
+					++slot->depth;
+					return;
+				}
+				// Reuse this slot for a fresh acquisition.
+				mtx_.lock_shared();
+				slot->depth = 1;
 				return;
 			}
+			if (slot == nullptr)
+			{
+				// Fail BEFORE touching the underlying lock so the error can
+				// never strand a shared slot.
+				throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
+				                        "RecursiveSharedMutex: per-thread shared slot table exhausted");
+			}
 
-			// Allocate the TLS node before taking the underlying lock: if the
-			// allocation throws, no shared slot has been acquired yet, so
-			// bad_alloc can never strand a shared slot.
-			SharedNode* fresh = (depth == nullptr) ? allocNode(this) : nullptr;
-			try
-			{
-				mtx_.lock_shared();
-			}
-			catch (...)
-			{
-				freeNode(fresh);
-				throw;
-			}
-			if (fresh != nullptr)
-			{
-				fresh->next = nodeList().head;
-				nodeList().head = fresh;
-				fresh->depth = 1;
-			}
-			else
-			{
-				*depth = 1;
-			}
+#ifdef RSM_ENABLE_TEST_HOOKS
+			injectSharedAcquireFailure();
+#endif
+			mtx_.lock_shared();
+			slot->key = this;
+			slot->depth = 1;
 		}
 
 		bool try_lock_shared()
@@ -154,39 +170,36 @@ namespace rsm
 				return true;
 			}
 
-			int* depth = findSharedDepth();
-			if (depth != nullptr && *depth > 0)
+			SharedDepthSlot* slot = findSharedSlot();
+			if (slot != nullptr && slot->key == this)
 			{
-				++(*depth);
+				if (slot->depth > 0)
+				{
+					++slot->depth;
+					return true;
+				}
+				if (!mtx_.try_lock_shared())
+				{
+					return false;
+				}
+				slot->depth = 1;
 				return true;
 			}
+			if (slot == nullptr)
+			{
+				throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
+				                        "RecursiveSharedMutex: per-thread shared slot table exhausted");
+			}
 
-			SharedNode* fresh = (depth == nullptr) ? allocNode(this) : nullptr;
-			bool acquired = false;
-			try
+#ifdef RSM_ENABLE_TEST_HOOKS
+			injectSharedAcquireFailure();
+#endif
+			if (!mtx_.try_lock_shared())
 			{
-				acquired = mtx_.try_lock_shared();
-			}
-			catch (...)
-			{
-				freeNode(fresh);
-				throw;
-			}
-			if (!acquired)
-			{
-				freeNode(fresh);
 				return false;
 			}
-			if (fresh != nullptr)
-			{
-				fresh->next = nodeList().head;
-				nodeList().head = fresh;
-				fresh->depth = 1;
-			}
-			else
-			{
-				*depth = 1;
-			}
+			slot->key = this;
+			slot->depth = 1;
 			return true;
 		}
 
@@ -198,118 +211,79 @@ namespace rsm
 				return;
 			}
 
-			int* depth = findSharedDepth();
-			if (depth == nullptr || *depth <= 0)
+			SharedDepthSlot* slot = findSharedSlot();
+			if (slot == nullptr || slot->key != this || slot->depth <= 0)
 			{
 				throw std::system_error(std::make_error_code(std::errc::operation_not_permitted),
 				                        "RecursiveSharedMutex::unlock_shared without shared ownership");
 			}
-			if (*depth > 1)
+			if (slot->depth > 1)
 			{
-				--(*depth);
+				--slot->depth;
 				return;
 			}
-			*depth = 0;
+			slot->key = nullptr;
+			slot->depth = 0;
 			mtx_.unlock_shared();
 		}
 
 	private:
-		struct SharedNode
+		struct SharedDepthSlot
 		{
-			const RecursiveSharedMutex* key;
+			const RecursiveSharedMutex* key;   // nullptr = free slot
 			int depth;
-			SharedNode* next;
 		};
 
-		// thread_local intrusive list with an owning destructor so nodes are
-		// released when a thread exits (previously leaked until process end).
-		struct SharedNodeList
+		// Constant-initialized POD table: no dynamic init, no destructor, no
+		// per-node heap allocation. See the file-header note on why freeing
+		// memory inside a thread_local destructor must be avoided.
+		struct SharedSlotTable
 		{
-			SharedNode* head = nullptr;
-
-			~SharedNodeList()
-			{
-				while (head != nullptr)
-				{
-					SharedNode* node = head;
-					head = node->next;
-					freeNode(node);
-				}
-			}
+			SharedDepthSlot slots[kSharedSlotCount] = {};
 		};
 
-		static SharedNodeList& nodeList()
+		static SharedSlotTable& slotTable()
 		{
-			thread_local SharedNodeList list;
-			return list;
+			thread_local SharedSlotTable table;
+			return table;
 		}
 
-		static SharedNode* allocNode(const RecursiveSharedMutex* key)
-		{
-			SharedNode* node = new SharedNode{key, 0, nullptr};
 #ifdef RSM_ENABLE_TEST_HOOKS
-			live_shared_nodes.fetch_add(1, std::memory_order_relaxed);
-#endif
-			return node;
-		}
-
-		static void freeNode(SharedNode* node)
+		static void injectSharedAcquireFailure()
 		{
-			if (node == nullptr)
+			if (fail_next_shared_acquire.exchange(0, std::memory_order_acq_rel) != 0)
 			{
-				return;
+				throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
+				                        "RecursiveSharedMutex: injected shared-acquire failure");
 			}
-#ifdef RSM_ENABLE_TEST_HOOKS
-			live_shared_nodes.fetch_sub(1, std::memory_order_relaxed);
-#endif
-			delete node;
 		}
+#endif
 
-		static void eraseSharedNode(const RecursiveSharedMutex* key)
+		// Returns the slot tracked for this mutex, otherwise a free slot,
+		// otherwise nullptr when the table is full. Callers distinguish the
+		// cases via slot->key.
+		SharedDepthSlot* findSharedSlot() const
 		{
-			SharedNode** link = &nodeList().head;
-			while (*link != nullptr)
+			SharedDepthSlot* freeSlot = nullptr;
+			SharedDepthSlot* table = slotTable().slots;
+			for (std::size_t i = 0; i < kSharedSlotCount; ++i)
 			{
-				if ((*link)->key == key)
+				if (table[i].key == this)
 				{
-					SharedNode* node = *link;
-					*link = node->next;
-					freeNode(node);
-					return;
+					return &table[i];
 				}
-				link = &(*link)->next;
-			}
-		}
-
-		int* findSharedDepth() const
-		{
-			SharedNode** link = &nodeList().head;
-			SharedNode* prev = nullptr;
-			for (SharedNode* node = *link; node != nullptr; node = node->next)
-			{
-#ifdef RSM_ENABLE_TEST_HOOKS
-				shared_scan_steps.fetch_add(1, std::memory_order_relaxed);
-#endif
-				if (node->key == this)
+				if (table[i].key == nullptr && freeSlot == nullptr)
 				{
-					if (prev != nullptr)
-					{
-						// Move-to-front so a hot mutex costs O(1) per lookup.
-						prev->next = node->next;
-						node->next = *link;
-						*link = node;
-					}
-					return &node->depth;
+					freeSlot = &table[i];
 				}
-				prev = node;
 			}
-			return nullptr;
+			return freeSlot;
 		}
 
 		int sharedDepthValue() const
 		{
-			const int* depth = findSharedDepth();
-			return depth == nullptr ? 0 : *depth;
+			const SharedDepthSlot* slot = findSharedSlot();
+			return (slot != nullptr && slot->key == this) ? slot->depth : 0;
 		}
 
 		std::shared_mutex mtx_;
