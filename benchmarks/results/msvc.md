@@ -7,6 +7,35 @@
 - Host hw_concurrency: 32
 - Launch mode: one process per (scenario, impl) pair
 
+## Speedup at a glance
+
+Bar length ∝ total-ops/s speedup vs `recursive_mutex` (1 block ≈ 0.5x; above 1x = faster, below 1x = slower).
+
+```
+S1 read-heavy 15/1     13.59x  ███████████████████████████▏
+S2 write-heavy 2/12     1.97x  ███▉
+S3 balanced 8/8        12.27x  ████████████████████████▌
+S4 mixed ~20% write    13.51x  ███████████████████████████
+S5 mixed ~5% write      6.09x  ████████████▏
+S6 sharded ~15% write   0.59x  █▏
+S7 exclusive-only       0.93x  █▊
+```
+
+## Per-scenario verdict
+
+| Scenario | Baseline ops/s | RSM ops/s | Speedup | Verdict |
+|---|---:|---:|---:|---|
+| S1 read-heavy (15/1) | 630,477 | 8,571,281 | **13.59x** | ✅ biggest win; writer starves under heavy readers (write ops ≈ 0) |
+| S2 write-heavy (2/12) | 541,571 | 1,064,699 | **1.97x** | ✅ write path benefits too once readers go shared |
+| S3 balanced (8/8) | 457,529 | 5,613,197 | **12.27x** | ✅ |
+| S4 mixed ~20% write | 432,530 | 5,841,350 | **13.51x** | ✅ |
+| S5 mixed ~5% write | 1,089,740 | 6,632,829 | **6.09x** | ✅ |
+| S6 sharded x8 ~15% write | 13,641,670 | 8,020,888 | 0.59x | ❌ sharding already removed contention; shared locking is slower here |
+| S7 exclusive-only (no `shared_lock` yet) | 1,207,639 | 1,124,432 | 0.93x | ⚠️ ~7% pure wrapper overhead, acceptable as migration step 1 |
+
+<details>
+<summary>Full metrics</summary>
+
 | Scenario | Impl | R/W or N | Read ops | Write ops | Total ops/s | Read ops/s | Write ops/s | Total speedup |
 |----------|------|----------|----------|-----------|-------------|------------|-------------|---------------|
 | S1 read-heavy nested | `recursive_mutex` | 15/1 | 1775482 | 115950 | 630477 | 591827 | 38650 | 1x |
@@ -23,6 +52,8 @@
 | S6 sharded x8 ~15% write | `RecursiveSharedMutex` | N=16 | 22489081 | 1573583 | 8020888 | 7496360 | 524528 | 0.59x |
 | S7 exclusive-only overhead | `recursive_mutex` | 8/8 | 2015176 | 1607741 | 1207639 | 671725 | 535914 | 1x |
 | S7 exclusive-only overhead | `RSM exclusive-only` | 8/8 | 1610601 | 1762695 | 1124432 | 536867 | 587565 | 0.93x |
+
+</details>
 
 Raw lines:
 
