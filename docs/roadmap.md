@@ -4,9 +4,9 @@ RecursiveSharedMutex is a **transition component**: its purpose is to carry a
 codebase from `std::recursive_mutex` to reader/writer locking until the
 codebase can be de-recursivized. This roadmap covers the remaining lifecycle.
 
-## R1 - Binding-constraint seal (immediate, comment-only)
+## R1 - Binding-constraint seal + compile-time migration notice (immediate, comment/preprocessor-only)
 
-Add a prominent OS-thread-binding constraint block to the header. Precise
+1. Add a prominent OS-thread-binding constraint block to the header. Precise
 wording matters - the violation mechanism is fail-fast + stranded slot, not
 memory corruption:
 
@@ -23,7 +23,29 @@ memory corruption:
   mechanism here - that was the separate emutls TLS-dtor defect, fixed in
   v0.2.0. Do not conflate them when debugging.)
 
-Acceptance: comment-only change; full boundary suite unchanged.
+2. Compile-time migration notice, fired by feature-test macro (C++17 builds
+see nothing; the notice fires exactly when a future bump enables coroutines):
+
+```cpp
+#if defined(__cpp_impl_coroutine) && __cpp_impl_coroutine >= 201902L \
+    && !defined(RSM_NO_THREAD_MIGRATION_NOTICE)
+#pragma message("RecursiveSharedMutex is bound to OS threads: a task that " \
+                "resumes on a different physical thread will strand its "   \
+                "shared slot and starve writers. Same-thread resume is "    \
+                "safe. See the thread-binding notes above.")
+#endif
+```
+
+- Note-level (`#pragma message`), not `#warning`: enabling coroutine language
+  mode is not misuse by itself; same-thread resume is legitimate.
+- Opt-out: `-DRSM_NO_THREAD_MIGRATION_NOTICE`.
+- Honest limits: nothing compile-time can detect thread migration or
+  work-stealing executors (a runtime property), and C++17 does NOT exclude
+  C++17-usable stackful coroutines/fibers or TBB-style pools - those are
+  covered only by the runtime affinity guard (validation kit).
+
+Acceptance: comment/preprocessor-only change; boundary suite unchanged;
+building one TU with `-std=c++20` shows the notice, `-std=c++17` shows none.
 
 ## R2 - Writer-starvation observability (short term, consuming project)
 
