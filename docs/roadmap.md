@@ -6,6 +6,10 @@ codebase can be de-recursivized. This roadmap covers the remaining lifecycle.
 
 ## R1 - Binding-constraint seal + compile-time migration notice (immediate, comment/preprocessor-only)
 
+Status: **landed** in the header (THREAD-BINDING CONSTRAINT block + compile-time
+notice). Acceptance was verified on MinGW-w64 GCC 13.2: `-std=c++17` builds
+emit nothing, `-std=c++20` emits the notice, boundary suite unchanged.
+
 1. Add a prominent OS-thread-binding constraint block to the header. Precise
 wording matters - the violation mechanism is fail-fast + stranded slot, not
 memory corruption:

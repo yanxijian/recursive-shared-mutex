@@ -38,6 +38,27 @@
 //   It may only ever be used when the owner is guaranteed to never touch
 //   the mutex again. Recovery for stranded slots is "homed unlock" - see
 //   docs/migration.md.
+// THREAD-BINDING CONSTRAINT (R1): this component is bound to OS native
+//   threads; all shared-recursion accounting lives in per-thread TLS.
+//   FORBIDDEN wherever a task may resume on a different physical thread:
+//   thread-migrating coroutines, work-stealing pools (TBB etc.), user-mode
+//   fibers with migration. SAFE: stackful coroutines/fibers that always
+//   resume on the acquiring thread; C++20 coroutines when the executor
+//   guarantees same-thread resume. Violation consequence: unlock_shared()
+//   from a foreign thread throws operation_not_permitted and strands the
+//   slot (writer starvation); an exception escaping a destructor terminates
+//   the process - it is NOT heap corruption (do not conflate with the
+//   emutls defect noted above).
+
+// Compile-time notice (R1): informational only - enabling coroutine language
+//   mode is not misuse by itself; same-thread resume is legitimate. Opt out
+//   with RSM_NO_THREAD_MIGRATION_NOTICE.
+#if defined(__cpp_impl_coroutine) && __cpp_impl_coroutine >= 201902L && !defined(RSM_NO_THREAD_MIGRATION_NOTICE)
+#pragma message("RecursiveSharedMutex is bound to OS threads: a task that "                                            \
+                "resumes on a different physical thread will strand its "                                              \
+                "shared slot and starve writers. Same-thread resume is "                                               \
+                "safe. See the THREAD-BINDING CONSTRAINT above.")
+#endif
 
 namespace rsm
 {
