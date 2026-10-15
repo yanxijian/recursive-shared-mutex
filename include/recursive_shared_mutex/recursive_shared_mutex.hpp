@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <shared_mutex>
 #include <system_error>
@@ -8,8 +9,14 @@
 
 // C++17 header-only recursive shared_mutex.
 // Exclusive: atomic owner id + owner-only counters on the instance.
-// Shared recursion: thread_local intrusive list keyed by a unique instance id_
-// (never reuse address-based keys across mutex lifetimes).
+// Shared recursion: thread_local intrusive list keyed by the mutex address.
+//   Under the documented "never destroy while locked" contract, address reuse
+//   can only inherit depth==0 nodes, and depth==0 nodes never fake
+//   re-entrancy (lock_shared re-acquires the underlying lock).
+// Cross-module note: the TLS list lives in every module that includes this
+//   header. A mutex whose lock_shared/unlock_shared sequence crosses a
+//   DLL/EXE boundary must stay within one module's TLS domain; if that cannot
+//   be guaranteed, host the TLS state in a single exported module instead.
 
 namespace rsm
 {
@@ -17,14 +24,18 @@ namespace rsm
 	class RecursiveSharedMutex
 	{
 	public:
-		RecursiveSharedMutex()
-		    : id_(nextId().fetch_add(1, std::memory_order_relaxed))
-		{
-		}
+#ifdef RSM_ENABLE_TEST_HOOKS
+		// Test instrumentation only: live TLS node count and cumulative TLS
+		// list scan steps. Compiled out for normal consumers.
+		inline static std::atomic<std::size_t> live_shared_nodes{0};
+		inline static std::atomic<std::uint64_t> shared_scan_steps{0};
+#endif
+
+		RecursiveSharedMutex() = default;
 
 		~RecursiveSharedMutex()
 		{
-			eraseSharedNode(id_);
+			eraseSharedNode(this);
 		}
 
 		RecursiveSharedMutex(const RecursiveSharedMutex&) = delete;
@@ -110,8 +121,29 @@ namespace rsm
 				return;
 			}
 
-			mtx_.lock_shared();
-			ensureSharedDepth() = 1;
+			// Allocate the TLS node before taking the underlying lock: if the
+			// allocation throws, no shared slot has been acquired yet, so
+			// bad_alloc can never strand a shared slot.
+			SharedNode* fresh = (depth == nullptr) ? allocNode(this) : nullptr;
+			try
+			{
+				mtx_.lock_shared();
+			}
+			catch (...)
+			{
+				freeNode(fresh);
+				throw;
+			}
+			if (fresh != nullptr)
+			{
+				fresh->next = nodeList().head;
+				nodeList().head = fresh;
+				fresh->depth = 1;
+			}
+			else
+			{
+				*depth = 1;
+			}
 		}
 
 		bool try_lock_shared()
@@ -129,11 +161,32 @@ namespace rsm
 				return true;
 			}
 
-			if (!mtx_.try_lock_shared())
+			SharedNode* fresh = (depth == nullptr) ? allocNode(this) : nullptr;
+			bool acquired = false;
+			try
 			{
+				acquired = mtx_.try_lock_shared();
+			}
+			catch (...)
+			{
+				freeNode(fresh);
+				throw;
+			}
+			if (!acquired)
+			{
+				freeNode(fresh);
 				return false;
 			}
-			ensureSharedDepth() = 1;
+			if (fresh != nullptr)
+			{
+				fresh->next = nodeList().head;
+				nodeList().head = fresh;
+				fresh->depth = 1;
+			}
+			else
+			{
+				*depth = 1;
+			}
 			return true;
 		}
 
@@ -163,33 +216,65 @@ namespace rsm
 	private:
 		struct SharedNode
 		{
-			std::uint64_t id;
+			const RecursiveSharedMutex* key;
 			int depth;
 			SharedNode* next;
 		};
 
-		static std::atomic<std::uint64_t>& nextId()
+		// thread_local intrusive list with an owning destructor so nodes are
+		// released when a thread exits (previously leaked until process end).
+		struct SharedNodeList
 		{
-			static std::atomic<std::uint64_t> n{1};
-			return n;
+			SharedNode* head = nullptr;
+
+			~SharedNodeList()
+			{
+				while (head != nullptr)
+				{
+					SharedNode* node = head;
+					head = node->next;
+					freeNode(node);
+				}
+			}
+		};
+
+		static SharedNodeList& nodeList()
+		{
+			thread_local SharedNodeList list;
+			return list;
 		}
 
-		static SharedNode*& head()
+		static SharedNode* allocNode(const RecursiveSharedMutex* key)
 		{
-			thread_local SharedNode* h = nullptr;
-			return h;
+			SharedNode* node = new SharedNode{key, 0, nullptr};
+#ifdef RSM_ENABLE_TEST_HOOKS
+			live_shared_nodes.fetch_add(1, std::memory_order_relaxed);
+#endif
+			return node;
 		}
 
-		static void eraseSharedNode(std::uint64_t id)
+		static void freeNode(SharedNode* node)
 		{
-			SharedNode** link = &head();
+			if (node == nullptr)
+			{
+				return;
+			}
+#ifdef RSM_ENABLE_TEST_HOOKS
+			live_shared_nodes.fetch_sub(1, std::memory_order_relaxed);
+#endif
+			delete node;
+		}
+
+		static void eraseSharedNode(const RecursiveSharedMutex* key)
+		{
+			SharedNode** link = &nodeList().head;
 			while (*link != nullptr)
 			{
-				if ((*link)->id == id)
+				if ((*link)->key == key)
 				{
 					SharedNode* node = *link;
 					*link = node->next;
-					delete node;
+					freeNode(node);
 					return;
 				}
 				link = &(*link)->next;
@@ -198,25 +283,27 @@ namespace rsm
 
 		int* findSharedDepth() const
 		{
-			for (SharedNode* node = head(); node != nullptr; node = node->next)
+			SharedNode** link = &nodeList().head;
+			SharedNode* prev = nullptr;
+			for (SharedNode* node = *link; node != nullptr; node = node->next)
 			{
-				if (node->id == id_)
+#ifdef RSM_ENABLE_TEST_HOOKS
+				shared_scan_steps.fetch_add(1, std::memory_order_relaxed);
+#endif
+				if (node->key == this)
 				{
+					if (prev != nullptr)
+					{
+						// Move-to-front so a hot mutex costs O(1) per lookup.
+						prev->next = node->next;
+						node->next = *link;
+						*link = node;
+					}
 					return &node->depth;
 				}
+				prev = node;
 			}
 			return nullptr;
-		}
-
-		int& ensureSharedDepth()
-		{
-			if (int* existing = findSharedDepth())
-			{
-				return *existing;
-			}
-			SharedNode* node = new SharedNode{id_, 0, head()};
-			head() = node;
-			return node->depth;
 		}
 
 		int sharedDepthValue() const
@@ -227,7 +314,6 @@ namespace rsm
 
 		std::shared_mutex mtx_;
 		std::atomic<std::thread::id> owner_{};
-		std::uint64_t id_;
 		int exclusive_count_ = 0;
 		int under_exclusive_ = 0;
 	};

@@ -26,7 +26,7 @@ void read() {
 ## Features
 
 - Compatible with `std::unique_lock` / `std::shared_lock` (C++17 *SharedMutex* surface)
-- Per-thread **and** per-mutex recursion counts (TLS keyed by unique instance `id_`)
+- Per-thread **and** per-mutex recursion counts (TLS list keyed by the mutex address; nodes released on thread exit)
 - Write→read nesting allowed; read→write upgrade is rejected (`std::system_error`)
 - `try_lock` / `try_lock_shared`
 - Header-only, CMake `INTERFACE` library (`rsm::recursive_shared_mutex`)
@@ -87,9 +87,15 @@ ctest --test-dir build --output-on-failure
 | Holds shared, then `try_lock` | Returns `false` |
 | Unlock on a different OS thread | Unsupported (TLS) |
 
-Exclusive recursion uses an atomic owner id on the instance; shared recursion uses a `thread_local` intrusive list (not `unordered_map`) for per-mutex depth.
+Exclusive recursion uses an atomic owner id on the instance; shared recursion uses a `thread_local` intrusive list (not `unordered_map`) keyed by the mutex address and released on thread exit.
 
 See [docs/migration.md](docs/migration.md) for the migration guide and test matrix.
+
+## Limitations
+
+- The TLS recursion list is per-module (header-only): keep one mutex's `lock_shared`/`unlock_shared` sequence within a single module's TLS domain when DLLs/EXE boundaries are involved, or host the TLS state in a single exported module.
+- No lock upgrade (shared → exclusive): `lock()` throws `resource_deadlock_would_occur` by design; audit read-then-write call chains before moving readers to `shared_lock`.
+- `std::shared_mutex` underneath has no writer preference: writers may starve under continuous readers (see benchmarks S1/S5).
 
 ## Project layout
 

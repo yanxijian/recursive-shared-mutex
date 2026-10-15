@@ -1,7 +1,10 @@
 ﻿#include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <cstdint>
+#include <cstdlib>
 #include <mutex>
+#include <new>
 #include <recursive_shared_mutex/recursive_shared_mutex.hpp>
 #include <shared_mutex>
 #include <system_error>
@@ -9,6 +12,54 @@
 #include <vector>
 
 using rsm::RecursiveSharedMutex;
+
+// --- Global allocation hook (E1): one-shot bad_alloc injection --------------
+// Replacing global operator new lets the TLS node allocation inside
+// lock_shared()/try_lock_shared() fail deterministically. The flag is
+// one-shot: the first allocation after it is set throws, then it clears.
+namespace
+{
+	std::atomic<bool> g_failNextAlloc{false};
+}
+
+void* operator new(std::size_t n)
+{
+	if (g_failNextAlloc.exchange(false, std::memory_order_acq_rel))
+	{
+		throw std::bad_alloc();
+	}
+	void* p = std::malloc(n);
+	if (p == nullptr)
+	{
+		throw std::bad_alloc();
+	}
+	return p;
+}
+
+void* operator new[](std::size_t n)
+{
+	return ::operator new(n);
+}
+
+void operator delete(void* p) noexcept
+{
+	std::free(p);
+}
+
+void operator delete[](void* p) noexcept
+{
+	std::free(p);
+}
+
+void operator delete(void* p, std::size_t) noexcept
+{
+	std::free(p);
+}
+
+void operator delete[](void* p, std::size_t) noexcept
+{
+	std::free(p);
+}
 
 TEST_CASE("exclusive lock reentrancy", "[single][T1]")
 {
@@ -203,4 +254,111 @@ TEST_CASE("try paths against foreign holders", "[try][P1][P2]")
 	REQUIRE(mtx.try_lock_shared());
 	mtx.unlock_shared();
 	mtx.unlock_shared();
+}
+
+TEST_CASE("lock_shared allocation failure does not strand the shared slot", "[exception][E1]")
+{
+	RecursiveSharedMutex mtx;
+
+	g_failNextAlloc.store(true, std::memory_order_release);
+	bool threw = false;
+	try
+	{
+		mtx.lock_shared();
+	}
+	catch (const std::bad_alloc&)
+	{
+		threw = true;
+	}
+	REQUIRE(threw);
+
+	// The underlying shared slot must not be held: another thread can take
+	// and release the exclusive lock right away.
+	std::atomic<bool> gotExclusive{false};
+	std::thread probe([&]() {
+		gotExclusive = mtx.try_lock();
+		if (gotExclusive.load(std::memory_order_relaxed))
+		{
+			mtx.unlock();
+		}
+	});
+	probe.join();
+	REQUIRE(gotExclusive.load());
+
+	// Still usable afterwards.
+	mtx.lock_shared();
+	mtx.unlock_shared();
+}
+
+TEST_CASE("try_lock_shared failure leaves no TLS node behind", "[exception][E2]")
+{
+	RecursiveSharedMutex mtx;
+	std::atomic<bool> ready{false};
+	std::atomic<bool> done{false};
+
+	std::thread holder([&]() {
+		mtx.lock();
+		ready = true;
+		while (!done.load(std::memory_order_acquire))
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+		mtx.unlock();
+	});
+	while (!ready.load(std::memory_order_acquire))
+	{
+		std::this_thread::yield();
+	}
+
+	const std::size_t before = RecursiveSharedMutex::live_shared_nodes.load();
+	REQUIRE_FALSE(mtx.try_lock_shared());
+	REQUIRE(RecursiveSharedMutex::live_shared_nodes.load() == before);
+
+	done = true;
+	holder.join();
+}
+
+TEST_CASE("thread exit releases its TLS shared nodes", "[tls][E3]")
+{
+	const std::size_t before = RecursiveSharedMutex::live_shared_nodes.load();
+
+	std::thread worker([]() {
+		for (int i = 0; i < 8; ++i)
+		{
+			RecursiveSharedMutex mtx;
+			mtx.lock_shared();
+			mtx.unlock_shared();
+		}
+	});
+	worker.join();
+
+	REQUIRE(RecursiveSharedMutex::live_shared_nodes.load() == before);
+}
+
+TEST_CASE("move-to-front keeps hot mutex TLS lookups O(1)", "[tls][E4]")
+{
+	RecursiveSharedMutex a;
+	RecursiveSharedMutex b;
+
+	// Build list order [b, a]: touch a first, then b.
+	a.lock_shared();
+	a.unlock_shared();
+	b.lock_shared();
+	b.unlock_shared();
+
+	// First lookup of a moves it to the front of the list.
+	a.lock_shared();
+	a.unlock_shared();
+
+	const std::uint64_t stepsBefore = RecursiveSharedMutex::shared_scan_steps.load();
+	constexpr int kCycles = 8;
+	for (int i = 0; i < kCycles; ++i)
+	{
+		a.lock_shared();
+		a.unlock_shared();
+	}
+	const std::uint64_t stepsAfter = RecursiveSharedMutex::shared_scan_steps.load();
+
+	// One find per lock_shared/unlock_shared, each visiting exactly one node.
+	REQUIRE(stepsAfter - stepsBefore == 2 * static_cast<std::uint64_t>(kCycles));
 }
