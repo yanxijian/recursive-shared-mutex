@@ -1,0 +1,5 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/recursive_shared_mutexTargets.cmake")
+
+check_required_components(recursive_shared_mutex)

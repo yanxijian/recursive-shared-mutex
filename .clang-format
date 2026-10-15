@@ -1,0 +1,47 @@
+# Machine-readable C++ formatting spec (clang-format).
+# Canonical copy for all projects. Sync to repo root as .clang-format before formatting.
+#
+# Encoding note: clang-format does NOT write UTF-8 BOM.
+# Handwritten C/C++ must still be UTF-8 BOM + CRLF — see cpp-source-encoding.mdc.
+
+BasedOnStyle: Microsoft
+IndentWidth: 4
+TabWidth: 4
+UseTab: ForIndentation
+ColumnLimit: 120
+PointerAlignment: Left
+ReferenceAlignment: Left
+NamespaceIndentation: All
+IndentAccessModifiers: false
+AccessModifierOffset: -4
+MaxEmptyLinesToKeep: 1
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AlignAfterOpenBracket: Align
+AlignOperands: true
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  BeforeElse: true
+  BeforeCatch: true
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: Never
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex:           '^<windows\.h>'
+    Priority:        1
+  - Regex:           '^<'
+    Priority:        2
+  - Regex:           '^"'
+    Priority:        3
+
+# clang-format 16+: emit CRLF (does not manage UTF-8 BOM — see cpp-source-encoding.mdc)
+LineEnding: CRLF
