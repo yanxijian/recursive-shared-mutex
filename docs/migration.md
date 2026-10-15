@@ -13,10 +13,10 @@ Canonical code: [`include/recursive_shared_mutex/recursive_shared_mutex.hpp`](..
 | Concern | Approach |
 |---------|----------|
 | Exclusive recursion | `std::atomic<std::thread::id> owner_` + owner-only `exclusive_count_` / `under_exclusive_` |
-| Shared recursion | `thread_local` intrusive list keyed by `this` (not `unordered_map`; see below) |
+| Shared recursion | `thread_local` intrusive list keyed by unique instance `id_` |
 | Upgrade (shared → exclusive) | `lock()` throws `resource_deadlock_would_occur`; `try_lock()` returns `false` |
 
-**Why not `thread_local unordered_map`?** On some MinGW libstdc++ builds, combining `thread_local std::unordered_map` with contended `std::shared_mutex` produced heap corruption (`0xC0000374`). A simple intrusive list sidesteps that allocator path.
+Shared depth is not stored in `thread_local unordered_map` (allocator path under contended `shared_mutex` is fragile on some MinGW builds). Keys are monotonic `id_` values so mutex address reuse across lifetimes cannot alias TLS entries.
 
 ## Steps
 

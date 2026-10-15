@@ -26,10 +26,21 @@ void read() {
 ## Features
 
 - Compatible with `std::unique_lock` / `std::shared_lock` (C++17 *SharedMutex* surface)
-- Per-thread **and** per-mutex recursion counts (safe with multiple mutex instances)
+- Per-thread **and** per-mutex recursion counts (TLS keyed by unique instance `id_`)
 - Write→read nesting allowed; read→write upgrade is rejected (`std::system_error`)
 - `try_lock` / `try_lock_shared`
 - Header-only, CMake `INTERFACE` library (`rsm::recursive_shared_mutex`)
+
+## Benchmarks vs `std::recursive_mutex`
+
+See [benchmarks/README.md](benchmarks/README.md). Checked-in numbers:
+
+- [MSVC](benchmarks/results/msvc.md) — read-heavy scenarios about **6×–14×** total ops/s when readers use shared locks; exclusive-only overhead about **0.93×**
+- [MinGW-GCC](benchmarks/results/mingw-gcc.md) — shared-read gains are much smaller / writer-starved on this toolchain; validate on your release compiler
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/run_bench.ps1 -Toolchain both -Seconds 3
+```
 
 ## Requirements
 

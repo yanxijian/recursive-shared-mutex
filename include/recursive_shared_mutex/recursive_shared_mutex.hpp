@@ -1,23 +1,15 @@
 ﻿#pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <shared_mutex>
 #include <system_error>
 #include <thread>
 
 // C++17 header-only recursive shared_mutex.
-//
-// Exclusive ownership lives on the instance (`atomic` owner id + owner-only counters).
-// Shared-recursion depth is per (thread × mutex) via a thread_local intrusive list.
-// Note: thread_local std::unordered_map has exhibited heap corruption under shared_mutex
-// contention on some MinGW libstdc++ builds; a simple list avoids that allocator path.
-//
-// Rules:
-// - Same thread may re-enter lock() / lock_shared().
-// - Holding exclusive lock, lock_shared() is allowed (under_exclusive_).
-// - Holding shared lock, lock() is FORBIDDEN (upgrade deadlock) -> system_error.
-// - lock/unlock must stay on the same OS thread (no cross-thread unlock).
-// - Destroying a mutex while any thread still holds it is UB (same as std::mutex).
+// Exclusive: atomic owner id + owner-only counters on the instance.
+// Shared recursion: thread_local intrusive list keyed by a unique instance id_
+// (never reuse address-based keys across mutex lifetimes).
 
 namespace rsm
 {
@@ -25,8 +17,15 @@ namespace rsm
 	class RecursiveSharedMutex
 	{
 	public:
-		RecursiveSharedMutex() = default;
-		~RecursiveSharedMutex() = default;
+		RecursiveSharedMutex()
+		    : id_(nextId().fetch_add(1, std::memory_order_relaxed))
+		{
+		}
+
+		~RecursiveSharedMutex()
+		{
+			eraseSharedNode(id_);
+		}
 
 		RecursiveSharedMutex(const RecursiveSharedMutex&) = delete;
 		RecursiveSharedMutex& operator=(const RecursiveSharedMutex&) = delete;
@@ -164,10 +163,16 @@ namespace rsm
 	private:
 		struct SharedNode
 		{
-			const RecursiveSharedMutex* key;
+			std::uint64_t id;
 			int depth;
 			SharedNode* next;
 		};
+
+		static std::atomic<std::uint64_t>& nextId()
+		{
+			static std::atomic<std::uint64_t> n{1};
+			return n;
+		}
 
 		static SharedNode*& head()
 		{
@@ -175,11 +180,27 @@ namespace rsm
 			return h;
 		}
 
+		static void eraseSharedNode(std::uint64_t id)
+		{
+			SharedNode** link = &head();
+			while (*link != nullptr)
+			{
+				if ((*link)->id == id)
+				{
+					SharedNode* node = *link;
+					*link = node->next;
+					delete node;
+					return;
+				}
+				link = &(*link)->next;
+			}
+		}
+
 		int* findSharedDepth() const
 		{
 			for (SharedNode* node = head(); node != nullptr; node = node->next)
 			{
-				if (node->key == this)
+				if (node->id == id_)
 				{
 					return &node->depth;
 				}
@@ -193,7 +214,7 @@ namespace rsm
 			{
 				return *existing;
 			}
-			SharedNode* node = new SharedNode{this, 0, head()};
+			SharedNode* node = new SharedNode{id_, 0, head()};
 			head() = node;
 			return node->depth;
 		}
@@ -206,6 +227,7 @@ namespace rsm
 
 		std::shared_mutex mtx_;
 		std::atomic<std::thread::id> owner_{};
+		std::uint64_t id_;
 		int exclusive_count_ = 0;
 		int under_exclusive_ = 0;
 	};
