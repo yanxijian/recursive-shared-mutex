@@ -113,13 +113,15 @@ cd examples/cross_module_hazard && ./build_and_run.sh     # Linux/macOS
 build_and_run.cmd msvc                                     # Windows
 ```
 
-## 6. The SRWLOCK backend switch (MinGW fix)
+## 6. The SRWLOCK backend (the default on MinGW)
 
-`-DRSM_BACKEND_SRWLOCK` replaces `std::shared_mutex` with an 8-byte SRWLOCK
-wrapper inside the same class (default behaviour is unchanged). Measured on
-MinGW-w64 GCC 13.2, same binary layout, same tests:
+`RSM_BACKEND_SRWLOCK` replaces `std::shared_mutex` with an 8-byte SRWLOCK wrapper
+inside the same class. Since the version that introduced `RSM_BACKEND_STD`,
+MinGW-w64 selects it automatically: the alternative is unsound there, not just
+slow. `-DRSM_BACKEND_STD` restores `std::shared_mutex`. Measured on MinGW-w64 GCC
+13.2, same binary layout, same tests:
 
-| | default (`std::shared_mutex`) | `RSM_BACKEND_SRWLOCK` |
+| | `RSM_BACKEND_STD` (`std::shared_mutex`) | `RSM_BACKEND_SRWLOCK` (default) |
 |---|---:|---:|
 | `lock+unlock` | 62.8 ns/pair | **23.4 ns/pair** (2.7×) |
 | `lock_shared+unlock_shared` | 76.4 ns/pair | **35.1 ns/pair** (2.2×) |
