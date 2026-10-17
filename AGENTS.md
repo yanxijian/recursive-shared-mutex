@@ -231,7 +231,12 @@ the automation overwrite the desktop files.
   exhaustive set runs on `main` and weekly. `soak.yml` runs nightly and on
   demand - the mutual-exclusion driver for a minute, plain and under TSan -
   because three seconds is not a soak for a concurrency primitive; nothing on
-  the push path waits for it. Do not add a job to the build
+  the push path waits for it. `ci.yml` is **not** a duplicate of
+  `platform-matrix.yml`: it builds the way a consumer does - the default CMake
+  generator and the default compiler of each OS - while the matrix pins the
+  toolchain and uses Ninja. Both running on `main` is deliberate; they run in
+  parallel and the minutes are free, so do not deduplicate them without deciding
+  which signal to lose. Do not add a job to the build
   workflows "because it is convenient": it is paid on every push by everyone.
 - **`RSM_BACKEND_STD` is the wrong default on MinGW.** libstdc++'s
   `std::shared_mutex` there is built on winpthreads, which grants two exclusive

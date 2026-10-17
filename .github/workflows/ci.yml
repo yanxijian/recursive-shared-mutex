@@ -1,3 +1,7 @@
+# The consumer-shaped build: the default CMake generator and the default compiler
+# of each OS, nothing pinned. platform-matrix.yml covers the same three OS with
+# pinned toolchains and Ninja; both running on `main` is deliberate, not a
+# duplicate - see "CI is tiered" in AGENTS.md before removing either.
 name: CI
 
 on:

@@ -1,5 +1,10 @@
 # Cross-platform matrix for recursive-shared-mutex.
 #
+# The pinned half of the CI story: explicit toolchains and Ninja. ci.yml next to
+# it builds with the default generator and the default compiler of each OS;
+# running both on `main` is deliberate, not a duplicate - see "CI is tiered" in
+# AGENTS.md before removing either.
+#
 # This file is additive: copy it to .github/workflows/ and either run it next to
 # the existing ci.yml or replace ci.yml with it.
 #
