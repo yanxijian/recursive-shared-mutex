@@ -103,7 +103,7 @@ The standard is declared once, in [`.gitattributes`](.gitattributes):
 | Path | Repository and checkout |
 |---|---|
 | `*.c *.cc *.cpp *.cxx *.h *.hh *.hpp *.hxx` | **UTF-8 BOM + CRLF**, and `-text` so git never converts them (R1) |
-| `*.bat *.cmd` | LF in the object store, **CRLF on checkout** - cmd.exe expects it |
+| `*.bat *.cmd` | **CRLF in the repository and on checkout**, same rule as C/C++ - cmd.exe expects it |
 | everything else | **LF** in the repository and on checkout (`* text=auto eol=lf`) |
 
 `.editorconfig` states the same default and the same C/C++ exception.
