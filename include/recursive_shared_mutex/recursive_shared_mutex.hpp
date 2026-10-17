@@ -65,16 +65,22 @@
 //   glibc/musl rwlocks it silently "works" (that is why it is dangerous);
 //   with a writer waiting it can deadlock the calling thread.
 //   examples/cross_module_hazard/ reproduces this with a real DLL/.so.
-// BACKEND REQUIREMENT: every lock_shared()/try_lock_shared() this class issues
-//   assumes the backend keeps its promise - `try_lock()` grants exclusive
-//   ownership to at most one thread, and a reader is never inside while a
-//   writer is. MinGW-w64 GCC 13.2 (libstdc++ over winpthreads) violates that:
-//   two threads can both "acquire" the write lock under a try_lock storm, and
-//   this class then throws spurious system_error from unlock() (or corrupts the
-//   accounting) through no fault of its own. RSM_BACKEND_SRWLOCK (above) is the
-//   supported fix on that toolchain. tests/backend_contract.cpp checks the
-//   contract on the current toolchain; run it before trusting a new one.
-//   docs/platform-notes.md has the measured matrix.
+// BACKEND REQUIREMENT: every lock()/try_lock()/lock_shared()/try_lock_shared()
+//   this class issues assumes the backend keeps its promise - `try_lock()`
+//   grants exclusive ownership to at most one thread, and a reader is never
+//   inside while a writer is. MinGW-w64 GCC 13.2 (libstdc++ over winpthreads)
+//   violates that: two threads can both "acquire" the write lock under a
+//   try_lock storm, and this class then throws spurious system_error from
+//   unlock() (or corrupts the accounting) through no fault of its own.
+//   RSM_BACKEND_SRWLOCK is the answer and is selected automatically on MinGW.
+//   tests/backend_contract.cpp checks the contract on the current toolchain; run
+//   it before trusting a new one. docs/platform-notes.md has the measured matrix.
+//   ONE MORE promise is load-bearing since lock() grew its try_lock fast path:
+//   the backend must refuse `try_lock()` while the calling thread already holds
+//   the same mutex shared. lock() reads that refusal as "this might be an
+//   upgrade attempt". A backend that granted it anyway would let one thread hold
+//   the mutex both ways. SRWLOCK and the pthread rwlocks refuse; a custom backend
+//   must too, and tests/backend_contract.cpp does not cover this one.
 // ESCAPE VALVE: intentionally NOT provided. A release_shared_unchecked()
 //   that skips TLS accounting would leave the owner's slot at {key,
 //   depth=1}; any later RAII unwinding on the owner would then release the

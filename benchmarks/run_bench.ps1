@@ -11,7 +11,10 @@ param(
 	With -Baseline it compares the new speedups against a previously generated
 	results file and fails when a scenario regresses by more than -RegressionPct.
 	That is the PR gate; pass -RegressionPct 0 on scheduled runs, where runner
-	drift should not fail the job.
+	drift should not fail the job. -GateScenarios narrows the gate to named
+	scenarios (comma-separated prefix match): the CI gate uses "S6,S7", because on a
+	4-core runner the read-parallelism scenarios sit at parity by construction and
+	only produce scheduling noise.
 
 	The compiler must be on PATH:
 	  * msvc  -> run from a Developer PowerShell, or in CI after
