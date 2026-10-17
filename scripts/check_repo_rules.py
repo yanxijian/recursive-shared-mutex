@@ -55,7 +55,7 @@ class Report:
         self.fixed.append(f"{where}: [{rule}] {message}")
 
 
-def tracked_cpp_files() -> list[Path]:
+def tracked_files() -> list[Path]:
     try:
         out = subprocess.run(
             ["git", "ls-files", "-z"],
@@ -64,16 +64,12 @@ def tracked_cpp_files() -> list[Path]:
             check=True,
         ).stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
-        return [
-            p
-            for p in ROOT.rglob("*")
-            if p.suffix.lower() in CPP_SUFFIXES and not skipped(p)
-        ]
+        return [p for p in ROOT.rglob("*") if p.is_file() and not skipped(p)]
     files = [Path(p) for p in out.decode("utf-8").split("\0") if p]
-    return [ROOT / f for f in files if f.suffix.lower() in CPP_SUFFIXES and not skipped(f)]
+    return [ROOT / f for f in files if not skipped(f)]
 
 
-def staged_cpp_files() -> list[Path]:
+def staged_files() -> list[Path]:
     out = subprocess.run(
         ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"],
         cwd=ROOT,
@@ -81,7 +77,11 @@ def staged_cpp_files() -> list[Path]:
         check=True,
     ).stdout
     files = [Path(p) for p in out.decode("utf-8").split("\0") if p]
-    return [ROOT / f for f in files if f.suffix.lower() in CPP_SUFFIXES and not skipped(f)]
+    return [ROOT / f for f in files if not skipped(f)]
+
+
+def cpp_only(files: list[Path]) -> list[Path]:
+    return [f for f in files if f.suffix.lower() in CPP_SUFFIXES]
 
 
 def skipped(path: Path) -> bool:
@@ -202,6 +202,101 @@ def check_headers(paths: list[Path], rep: Report) -> None:
 
 
 # ---------------------------------------------------------------------------
+# R7 - a text file keeps the line endings it was committed with
+#      This repository is deliberately mixed: C/C++ is CRLF (R1), most tooling
+#      files are LF, the older documents are CRLF, and two files are genuinely
+#      mixed. Nothing notices a whole-file flip - not the compiler, not
+#      clang-format, not git - so a stray editor or a careless rewrite can turn a
+#      194-line LF document into 392 changed lines without changing a word.
+#      Policy: LF unless listed below, and a ""mixed"" entry must stay mixed.
+# ---------------------------------------------------------------------------
+TEXT_SUFFIXES = {
+    ".md",
+    ".yml",
+    ".yaml",
+    ".ps1",
+    ".sh",
+    ".cmd",
+    ".cmake",
+    ".in",
+    ".txt",
+    ".mdc",
+    ".editorconfig",
+}
+
+EOL_DEFAULT = "lf"
+EOL_POLICY = {
+    ".editorconfig": "crlf",
+    ".gitignore": "crlf",
+    ".github/ISSUE_TEMPLATE/bug_report.md": "crlf",
+    ".github/ISSUE_TEMPLATE/config.yml": "crlf",
+    ".github/ISSUE_TEMPLATE/feature_request.md": "crlf",
+    ".github/PULL_REQUEST_TEMPLATE.md": "crlf",
+    ".github/workflows/ci.yml": "crlf",
+    "CHANGELOG.md": "crlf",
+    "CMakeLists.txt": "crlf",
+    "CODE_OF_CONDUCT.md": "crlf",
+    "CONTRIBUTING.md": "crlf",
+    "LICENSE": "crlf",
+    "SECURITY.md": "crlf",
+    "cmake/recursive_shared_mutexConfig.cmake.in": "crlf",
+    "docs/migration.md": "crlf",
+    "examples/CMakeLists.txt": "crlf",
+    "tests/CMakeLists.txt": "crlf",
+    # Genuinely mixed before this rule existed; both endings must survive.
+    "README.md": "mixed",
+    "docs/platform-notes.md": "mixed",
+}
+
+TEXT_NAMES = {"LICENSE", ".gitignore", ".editorconfig"}
+
+
+def eol_style(raw: bytes) -> str:
+    crlf = raw.count(b"\r\n")
+    bare_lf = raw.count(b"\n") - crlf
+    if crlf and bare_lf:
+        return "mixed"
+    return "crlf" if crlf else "lf"
+
+
+def check_line_endings(files: list[Path], rep: Report, do_fix: bool) -> None:
+    for path in files:
+        if path.suffix.lower() in CPP_SUFFIXES:  # R1 owns those
+            continue
+        name = path.name
+        if path.suffix.lower() not in TEXT_SUFFIXES and name not in TEXT_NAMES:
+            continue
+        raw = path.read_bytes()
+        if not raw:
+            continue
+        try:
+            raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+
+        actual = eol_style(raw)
+        expected = EOL_POLICY.get(rel(path), EOL_DEFAULT)
+        if actual == expected or (expected == "mixed" and actual == "mixed"):
+            continue
+
+        if do_fix and expected in ("lf", "crlf"):
+            text = raw.decode("utf-8").replace("\r\n", "\n")
+            if expected == "crlf":
+                text = text.replace("\n", "\r\n")
+            path.write_bytes(text.encode("utf-8"))
+            rep.fix(rel(path), "eol", f"{actual} -> {expected}")
+            continue
+
+        rep.bad(
+            rel(path),
+            "eol",
+            f"line endings are {actual}, this file is {expected} (a whole-file flip "
+            f"shows up as a rewrite of every line; if the change is intended, move the "
+            f"path in EOL_POLICY of scripts/check_repo_rules.py)",
+        )
+
+
+# ---------------------------------------------------------------------------
 # R5 - one version, two copies: CMakeLists VERSION and the header macros
 #      (this repository's own; they already drifted once and broke find_package)
 # ---------------------------------------------------------------------------
@@ -250,15 +345,17 @@ def main() -> int:
     args = parser.parse_args()
 
     rep = Report()
-    paths = staged_cpp_files() if args.staged else tracked_cpp_files()
-    if not paths:
-        print("no C/C++ files to check")
+    files = staged_files() if args.staged else tracked_files()
+    paths = cpp_only(files)
+    if not paths and not files:
+        print("nothing to check")
         return 0
 
     check_encoding(paths, rep, args.fix)
     check_width(paths, rep)
     check_pragma_comment(paths, rep)
     check_headers(paths, rep)
+    check_line_endings(files, rep, args.fix)
     check_version(rep)
     check_changelog(rep)
 
@@ -270,7 +367,7 @@ def main() -> int:
     if rep.problems:
         print(f"\n{len(rep.problems)} violation(s). See AGENTS.md for the rule text.")
         return 1
-    scope = "staged files" if args.staged else f"{len(paths)} files"
+    scope = "staged files" if args.staged else f"{len(paths)} C/C++ and {len(files)} text files"
     print(f"repository rules: clean ({scope})")
     return 0
 
