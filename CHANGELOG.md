@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- Benchmark reports now record the backend they measured (`--backend`, printed as a `- Backend:` line). MinGW numbers before and after v0.3.0 are not comparable: the default backend changed there.
 
 ## [v0.3.0] - 2026-10-17
 
