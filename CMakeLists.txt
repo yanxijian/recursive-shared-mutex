@@ -1,14 +1,25 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(recursive_shared_mutex
-	VERSION 0.1.0
+	VERSION 0.2.1
 	DESCRIPTION "C++17 header-only recursive shared_mutex"
 	HOMEPAGE_URL "https://github.com/yanxijian/recursive-shared-mutex"
 	LANGUAGES CXX
 )
 
-option(RSM_BUILD_TESTS "Build unit tests" ON)
-option(RSM_BUILD_EXAMPLES "Build examples" ON)
+# Single source of truth for the version: bump it here and in CHANGELOG.md
+# together. (Historically this stayed at 0.1.0 while v0.2.x was released, which
+# made `find_package(recursive_shared_mutex 0.2 REQUIRED)` fail.)
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(RSM_IS_TOP_LEVEL ON)
+else()
+	set(RSM_IS_TOP_LEVEL OFF)
+endif()
+
+# Default OFF when consumed via add_subdirectory()/FetchContent: a consumer must
+# not be forced to fetch Catch2 and build two test binaries just to use a header.
+option(RSM_BUILD_TESTS "Build unit tests" ${RSM_IS_TOP_LEVEL})
+option(RSM_BUILD_EXAMPLES "Build examples" ${RSM_IS_TOP_LEVEL})
 
 add_library(recursive_shared_mutex INTERFACE)
 add_library(rsm::recursive_shared_mutex ALIAS recursive_shared_mutex)

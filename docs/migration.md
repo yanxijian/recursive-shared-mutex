@@ -30,10 +30,12 @@ Shared depth is not stored in `thread_local unordered_map` (allocator path under
 - No lock upgrade (shared then exclusive on the same mutex).
 - No cross-thread unlock (TLS / owner id).
 - Do not destroy a mutex while it is still locked.
-- Cross-module (DLL/EXE) use: the TLS slot table is per-module. A single mutex's `lock_shared`/`unlock_shared` sequence must stay within one module's TLS domain; if a mutex is called from several modules, host the TLS state in a single exported module instead of relying on the header-only TLS.
+- Cross-module (DLL/EXE) use: the TLS slot table is per-module. A single mutex's `lock_shared`/`unlock_shared` sequence must stay within one module's TLS domain; if a mutex is called from several modules, host the TLS state in a single exported module instead of relying on the header-only TLS. This is not a "stranded slot" edge case: the second module's `lock_shared()` finds no slot and calls the backend's `lock_shared()` again on a thread that already holds it in shared mode, which is **undefined behaviour** per `[thread.sharedmutex]`. SRWLOCK and reader-preferring glibc/musl rwlocks accept it silently; a writer-preferring rwlock can deadlock the calling thread. `examples/cross_module_hazard/` reproduces it with a real DLL/.so and is wired into CI.
 - Read-then-write on the same lock serialized under `recursive_mutex` but now throws `resource_deadlock_would_occur`; audit before moving any reader to `shared_lock`.
 - Writer starvation: `std::shared_mutex` has no writer preference. Under continuous readers, writers may starve (see benchmarks S1/S5); add upstream throttling/yielding if writes have latency requirements.
-- Per-thread cap: at most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread; the next one throws `resource_unavailable_try_again`. Slots recycle on unlock, so sequentially touching any number of mutexes is fine.
+- Per-thread cap: at most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread (≈4 KB TLS per thread). The next `lock_shared` throws `resource_unavailable_try_again`; `try_lock_shared` returns `false` instead, so `std::shared_lock(mtx, std::try_to_lock)` stays usable. Slots recycle on unlock, so sequentially touching any number of mutexes is fine.
+- No `std::condition_variable_any` once recursion depth > 1: `wait()` unlocks only one level, the mutex stays held and the waiting thread never wakes.
+- The backend must honour mutual exclusion (`try_lock` grants at most one owner, no reader inside while a writer is). MinGW-w64 GCC 13.2 over winpthreads does not; see `docs/platform-notes.md` and run `tests/backend_contract.cpp` on the target toolchain before migrating.
 
 ## Stranded slots and the rejected escape valve
 
@@ -55,6 +57,11 @@ Covered by `tests/test_recursive_shared_mutex.cpp`:
 - E2 `try_lock_shared` contention fails cleanly, mutex stays usable
 - E3 slot recycling across many mutexes + `kSharedSlotCount` cap enforcement
 - E5 `try_lock_shared` injected acquire failure: symmetric to E1
+
+Framework-free regression tests (no Catch2, one-line compile, used by the cross-platform CI matrix):
+
+- `tests/backend_contract.cpp` — does *this toolchain's* `std::shared_mutex` honour mutual exclusion? Runs an 8-thread `try_lock` storm with a critical-section counter, plus reader-vs-writer. Fails on MinGW-w64 GCC 13.2 (~1 violation per 1200 successful acquisitions); passes on MSVC / clang / clang-cl / 32-bit.
+- `tests/mutual_exclusion.cpp` — does *the library* keep two writers out of the critical section, and no reader with a writer? The existing suite asserts reentrancy bookkeeping and error paths, but not this.
 
 Failure injection uses the `RSM_ENABLE_TEST_HOOKS`-only `fail_next_shared_acquire` hook defined in the header; tests must not replace the global allocator.
 

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <atomic>
 #include <cstddef>
@@ -31,6 +31,22 @@
 //   this header. A mutex whose lock_shared/unlock_shared sequence crosses
 //   a DLL/EXE boundary must stay within one module's TLS domain; if that
 //   cannot be guaranteed, host the TLS state in a single exported module.
+//   Violating this is NOT merely a stranded slot: the second module's
+//   lock_shared() finds no slot and calls the backend's lock_shared() again
+//   on a thread that already owns it in shared mode, which is undefined
+//   behaviour per [thread.sharedmutex]. On SRWLOCK and on reader-preferring
+//   glibc/musl rwlocks it silently "works" (that is why it is dangerous);
+//   with a writer waiting it can deadlock the calling thread.
+//   examples/cross_module_hazard/ reproduces this with a real DLL/.so.
+// BACKEND REQUIREMENT: every lock_shared()/try_lock_shared() this class issues
+//   assumes the backend keeps its promise - `try_lock()` grants exclusive
+//   ownership to at most one thread, and a reader is never inside while a
+//   writer is. MinGW-w64 GCC 13.2 (libstdc++ over winpthreads) violates that:
+//   two threads can both "acquire" the write lock under a try_lock storm, and
+//   this class then throws spurious system_error from unlock() (or corrupts the
+//   accounting) through no fault of its own. tests/backend_contract.cpp checks
+//   the contract on the current toolchain; run it before trusting a new one.
+//   docs/platform-notes.md has the measured matrix.
 // ESCAPE VALVE: intentionally NOT provided. A release_shared_unchecked()
 //   that skips TLS accounting would leave the owner's slot at {key,
 //   depth=1}; any later RAII unwinding on the owner would then release the
@@ -70,6 +86,8 @@ namespace rsm
 		// Slots are recycled as soon as a shared lock depth drops to zero,
 		// so the working set is the number of *currently held* shared locks,
 		// not the number of mutexes ever touched.
+		// On exhaustion lock_shared() throws resource_unavailable_try_again,
+		// while try_lock_shared() returns false (try_* must not throw).
 		static constexpr std::size_t kSharedSlotCount = 256;
 
 #ifdef RSM_ENABLE_TEST_HOOKS
@@ -214,8 +232,10 @@ namespace rsm
 			SharedSlotTable& table = slotTable();
 			if (table.used >= kSharedSlotCount)
 			{
-				throw std::system_error(std::make_error_code(std::errc::resource_unavailable_try_again),
-				                        "RecursiveSharedMutex: per-thread shared slot table exhausted");
+				// SharedLockable requires try_lock_shared() to throw nothing: report
+				// the exhausted table as "could not acquire" and let the caller fall
+				// back to lock_shared(), which does throw with resource_unavailable.
+				return false;
 			}
 
 #ifdef RSM_ENABLE_TEST_HOOKS
