@@ -28,6 +28,7 @@ on:
   schedule:
     - cron: "0 4 * * 1" # weekly: catch toolchain/image drift (this is how the
                         # MinGW winpthreads defect would have been caught)
+  workflow_dispatch: # also for verifying the weekly probe itself
 
 concurrency:
   group: matrix-${{ github.ref }}
@@ -97,16 +98,17 @@ jobs:
           ./backend_contract.exe --rounds 15 --iters 3000
           ./mutual_exclusion.exe --iters 20000
 
-  contract-mingw-std:
-    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
-    # Red by design: libstdc++ over winpthreads grants two exclusive owners under a
-    # try_lock storm (docs/platform-notes.md), and -DRSM_BACKEND_STD is how you ask
-    # for that backend. Kept so the defect stays visible - if the cell ever turns
-    # green, the toolchain fixed itself and it can go.
-    name: contract / windows / mingw-ucrt64 + RSM_BACKEND_STD (defect visible)
+  mingw-upstream-probe:
+    # Runs weekly, never on push or pull request: day to day it has nothing to
+    # say. It compiles the library against libstdc++/winpthreads (RSM_BACKEND_STD)
+    # and runs tests/backend_contract.cpp there. That backend lets a reader and a
+    # writer be inside at the same time, so the contract test failing is the
+    # EXPECTED outcome: this job stays green while the upstream defect exists and
+    # turns red the day it disappears, which is the only day anyone has to act.
+    name: expected-fail / mingw winpthreads (red = upstream fixed)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 20
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: msys2/setup-msys2@v2
@@ -115,13 +117,57 @@ jobs:
           update: true
           install: >-
             mingw-w64-ucrt-x86_64-gcc
-      - name: Compile + run contract tests
-        shell: msys2 {0}
+
+      - name: Build the probe against the defective backend
+        shell: pwsh
         run: |
-          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_STD -Iinclude tests/backend_contract.cpp -o backend_contract.exe
-          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_STD -Iinclude tests/mutual_exclusion.cpp   -o mutual_exclusion.exe
-          ./backend_contract.exe --rounds 15 --iters 3000
-          ./mutual_exclusion.exe --iters 20000
+          & C:\msys64\ucrt64\bin\g++.exe -O2 -std=c++17 -pthread -DRSM_BACKEND_STD -Iinclude `
+            tests/backend_contract.cpp -o backend_contract_std.exe
+          if (-not (Test-Path backend_contract_std.exe)) { throw "the probe did not build" }
+
+      - name: Expect the contract to be violated
+        shell: pwsh
+        run: |
+          $log = "probe.log"
+          & .\backend_contract_std.exe --rounds 15 --iters 3000 *> $log
+          $rc = $LASTEXITCODE
+          $tail = (Get-Content $log | Select-Object -Last 10) -join "`n"
+          Write-Host $tail
+
+          $summary = $env:GITHUB_STEP_SUMMARY
+          if ($rc -ne 0) {
+            @(
+              '### Expected failure observed - nothing to do',
+              '',
+              '`-DRSM_BACKEND_STD` builds on libstdc++/winpthreads `std::shared_mutex`, which lets a',
+              'reader and a writer be inside at the same time. `tests/backend_contract.cpp` failing here',
+              'is the point of this job: it proves the upstream defect is still there.',
+              '',
+              'This job turns **red** only if the contract starts passing - that is the day the defect',
+              'is gone, and the job (plus the `RSM_BACKEND_STD` escape hatch) can be deleted.',
+              '',
+              '```',
+              $tail,
+              '```'
+            ) | Add-Content -Path $summary
+            Write-Host "::notice::Contract violated as expected (exit $rc) - upstream defect still present."
+            exit 0
+          }
+
+          @(
+            '### The upstream defect is gone',
+            '',
+            '`tests/backend_contract.cpp` passed against libstdc++/winpthreads. Either the toolchain',
+            'fixed its rwlock, or `RSM_BACKEND_STD` no longer selects it. Delete this job, and decide',
+            'whether `RSM_BACKEND_STD` still has a purpose.',
+            '',
+            '```',
+            $tail,
+            '```'
+          ) | Add-Content -Path $summary
+          Write-Host "::error::The winpthreads backend now honours the contract. Delete this expected-failure job (and revisit RSM_BACKEND_STD)."
+          exit 1
+
   contract-unix:
     if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     name: contract / ${{ matrix.name }}
@@ -210,31 +256,6 @@ jobs:
           cmake --build build
           ctest --test-dir build --output-on-failure --timeout 180
 
-  build-mingw-std:
-    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
-    # Red by design: same toolchain, std::shared_mutex over winpthreads.
-    name: suite / windows / mingw-ucrt64 + RSM_BACKEND_STD (defect visible)
-    runs-on: windows-latest
-    timeout-minutes: 30
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
-      - name: Configure, build, test
-        shell: msys2 {0}
-        run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_CXX_FLAGS=-DRSM_BACKEND_STD \
-                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
-          cmake --build build
-          ctest --test-dir build --output-on-failure --timeout 180
   build-linux:
     if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     name: suite / linux / ${{ matrix.name }}

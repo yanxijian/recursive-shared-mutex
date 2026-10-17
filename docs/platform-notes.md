@@ -94,6 +94,12 @@ window is the `unlock`/`try_lock` interleaving.
 | MinGW-GCC `RSM_BACKEND_STD` | **fail** (raw backend) | pass (blocking paths dominate) |
 | clang + libstdc++/winpthreads (same backend as `RSM_BACKEND_STD`) | **fail** | pass |
 
+How CI watches this: `.github/workflows/platform-matrix.yml` runs one weekly job,
+`expected-fail / mingw winpthreads (red = upstream fixed)`, which builds against
+`RSM_BACKEND_STD` and **expects** the contract to be violated. It is green while the
+defect exists and turns red only when the toolchain stops violating the contract,
+which is the signal to delete it.
+
 32-bit detail: `sizeof(rsm::RecursiveSharedMutex)` drops to 16, `lock+unlock` is
 7.9 ns and `std::recursive_mutex` 9.7 ns â€” on that configuration the wrapper is
 faster than what it replaces.
