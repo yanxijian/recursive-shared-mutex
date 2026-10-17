@@ -28,6 +28,8 @@ param(
 	[string]$BarChart = "full",
 	[string]$Baseline = "",
 	[double]$RegressionPct = 15,
+	# Comma-separated scenario prefixes that the gate may fail on; empty = all.
+	[string]$GateScenarios = "",
 	[switch]$Quiet
 )
 
@@ -241,15 +243,20 @@ function Invoke-Toolchain([string]$kind) {
 		$old = Read-BaselineSpeedups $Baseline
 		$new = Read-BaselineSpeedups $outFile
 		$bad = @()
+		$gated = @()
+		if (-not [string]::IsNullOrWhiteSpace($GateScenarios)) {
+			$gated = @($GateScenarios.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+		}
 		foreach ($sc in $new.Keys) {
 			if (-not $old.ContainsKey($sc) -or $old[$sc] -le 0) { continue }
+			$isGated = ($gated.Count -eq 0) -or (@($gated | Where-Object { $sc.StartsWith($_) }).Count -gt 0)
 			$delta = ($new[$sc] - $old[$sc]) / $old[$sc] * 100.0
-			$state = if ($RegressionPct -gt 0 -and $delta -le -$RegressionPct) { "REGRESSION" } elseif ($delta -ge $RegressionPct) { "faster" } else { "within threshold" }
+			$state = if (-not $isGated) { "not gated" } elseif ($RegressionPct -gt 0 -and $delta -le -$RegressionPct) { "REGRESSION" } elseif ($delta -ge $RegressionPct) { "faster" } else { "within threshold" }
 			if (-not $Quiet) {
 				$deltaText = if ($delta -ge 0) { "+" + $delta.ToString("N1") } else { $delta.ToString("N1") }
 				"{0,-32} {1,7:N2}x -> {2,7:N2}x  ({3,6}%)  {4}" -f $sc, $old[$sc], $new[$sc], $deltaText, $state | Write-Host
 			}
-			if ($RegressionPct -gt 0 -and $delta -le -$RegressionPct) { $bad += $sc }
+			if ($isGated -and $RegressionPct -gt 0 -and $delta -le -$RegressionPct) { $bad += $sc }
 		}
 		if ($bad.Count -gt 0) {
 			throw ("benchmark regression beyond {0}%: {1}" -f $RegressionPct, ($bad -join ", "))
