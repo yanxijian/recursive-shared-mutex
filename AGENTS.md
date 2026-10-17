@@ -242,3 +242,61 @@ the automation overwrite the desktop files.
 - **Catch2:** assertions must run on the main thread. A failing `REQUIRE` inside
   a `std::thread` escapes as `Catch::TestFailureException` and terminates the
   process instead of failing the case.
+
+## Releasing
+
+A release touches five places at once. Miss one and the tree disagrees with
+itself: `check_repo_rules.py` catches the version pair (R5) but nothing catches a
+README that still advertises the old tag.
+
+1. **Version, both copies** (R5): `project(... VERSION x.y.z)` in `CMakeLists.txt`
+   and `RSM_VERSION_MAJOR/MINOR/PATCH` in the header. Patch for documentation, CI
+   and tooling; minor for anything a consumer can observe.
+2. **`CHANGELOG.md`**: move the `[Unreleased]` body into `## [vX.Y.Z] - YYYY-MM-DD`
+   and leave `[Unreleased]` behind, empty (R6). Collapse entries that describe the
+   same decision reversed over several commits - the changelog states what is true
+   now, not the sequence of attempts.
+3. **`README.md` and `README.zh-CN.md`**: the `GIT_TAG` in the FetchContent example
+   and the `RSM_VERSION_*` row. Both languages, then refresh the
+   `translated-from: README.md sha256:...` hash in the Chinese one, or R8 reports it
+   stale.
+4. **Tag**, annotated, on the merge commit:
+
+   ```bash
+   git tag -a vX.Y.Z -m "vX.Y.Z: <one line on what the release is>"
+   git push origin vX.Y.Z
+   ```
+
+   Annotated, not lightweight: `git describe` ignores lightweight tags and
+   `git push --follow-tags` does not send them.
+5. **GitHub Release**, from the changelog section, **bilingual**:
+
+   ```
+   **English** · [简体中文](#简体中文)
+
+   <the changelog section, English>
+
+   ---
+
+   ## 简体中文
+
+   <a full translation, not a summary>
+   ```
+
+   Title: `<english title> · <中文标题>`. `--latest` only on the newest release;
+   GitHub otherwise promotes whichever was created last.
+
+   ```bash
+   gh release create vX.Y.Z --title "vX.Y.Z - ... · ..." \
+     --notes-file notes.md --latest
+   ```
+
+Release notes are a **snapshot**: unlike `docs/*.zh-CN.md` they are not tracked by
+R8, so a later English change does not mark them stale. Write the Chinese by
+translating the English entry - do not translate `CHANGELOG.md` wholesale and copy
+paragraphs, and do not translate the words that *describe* corruption
+(`Ã—` in an entry about mojibake is content, not damage).
+
+After a history rewrite, tags keep pointing at the old objects: re-point each one at
+the equivalent commit on `main` (`git tag -f -a vX.Y.Z <new-commit> -m "..."`, then
+force-push the tag). Check with `git merge-base --is-ancestor vX.Y.Z HEAD`.

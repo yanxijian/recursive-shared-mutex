@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `AGENTS.md` documents the release procedure: the five places a version lives, the annotated tag, and the bilingual GitHub Release body (English, then `## 简体中文`, title `english · 中文`). All five existing releases were brought up to that shape, and two older bodies were repaired (v0.3.0 carried cp1252 corruption, v0.1.0 carried a leaked link-reference block).
 ## [v0.3.1] - 2026-10-17
 
 ### Changed
