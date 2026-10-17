@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:aacbe7f4fc0d -->
+<!-- translated-from: README.md sha256:f0ab0358c682 -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -93,7 +93,7 @@ std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
   原因在工具链而不在设计：libstdc++ 走 winpthreads 的 `std::shared_mutex` 比原生 `SRWLOCK` 慢约 11×，
   每次 `thread_local` 访问都走 emutls，而且该后端的 `try_lock()` 甚至连互斥都不保证。
   这就是 MinGW 现在默认原生后端的原因。
-- **MinGW-GCC 配原生后端（默认）**：每次独占加解锁从 62.8 → 23.4 ns（2.7×），共享配对 76.4 → 35.1 ns，
+- **MinGW-GCC 配原生后端（默认）**：每次独占加解锁从 62.7 → 24.2 ns（2.6×），共享配对 64.4 → 25.8 ns（2.5×），
   纯独占比值从 0.067× 变成 **1.52×**——比 `std::recursive_mutex` 更快。后端契约测试也重新通过。
 
 ### MinGW-w64：原生后端就是默认

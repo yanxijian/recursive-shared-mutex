@@ -2,7 +2,7 @@
 
 [English](platform-notes.md) · **简体中文**
 
-<!-- translated-from: platform-notes.md sha256:b16769db9fc4 -->
+<!-- translated-from: platform-notes.md sha256:86c1e1e41aab -->
 
 所有数字都在同一台 Windows x64 主机上测得（争用场景 8 线程，`-O2`/`/O2`，非争用场景 2 M 次迭代）。
 绝对值与机器强相关；重要的是**比值**和通过/失败结果。`S7` 的比值取 5 轮交错 1 秒测量的中位数，
@@ -117,13 +117,16 @@ build_and_run.cmd msvc                                     # Windows
 
 | | `RSM_BACKEND_STD` (`std::shared_mutex`) | `RSM_BACKEND_SRWLOCK`（默认） |
 |---|---:|---:|
-| `lock+unlock` | 62.8 ns/配对 | **23.4 ns/配对**（2.7×） |
-| `lock_shared+unlock_shared` | 76.4 ns/配对 | **35.1 ns/配对**（2.2×） |
-| 2× 嵌套独占 | 70.9 ns | **32.9 ns** |
-| 2× 嵌套共享 | 108.1 ns | **66.1 ns** |
+| `lock+unlock` | 62.7 ns/配对 | **24.2 ns/配对**（2.6×） |
+| `lock_shared+unlock_shared` | 64.4 ns/配对 | **25.8 ns/配对**（2.5×） |
+| 2× 嵌套独占 | 72.5 ns | **33.9 ns** |
+| 2× 嵌套共享 | 86.7 ns | **47.2 ns** |
 | S7 形态 vs `std::recursive_mutex` | 0.068× | **1.523×** |
-| `backend_contract` | **失败**（245 次违规） | **通过**（0） |
+| `backend_contract` | **失败** | **通过** |
 | 完整套件 | **失败** | **通过** |
+
+共享相关的两行在 v0.4.0 上重测：`is_held_exclusive()` 现在会在没有独占属主时跳过 `pthread_self()` 调用，
+两种后端都受益。独占与 S7 两行不受该改动影响，仍是更早的测量。
 
 在 MSVC 上这个开关实际上是空操作（`std::shared_mutex` 本来就是 SRWLOCK）：5.8 vs 5.7 ns，两种方式契约都通过。
 
@@ -134,6 +137,7 @@ build_and_run.cmd msvc                                     # Windows
 ## 7. 试过并否决的方案（附数字）
 
 另外两个优化在原型阶段被测量后放弃。记录下来是为了没人重复这项工作，也因为负面结果能说明成本到底在哪。
+本节基线来自 v0.3.x；v0.4.0 降低了共享路径（第 6 节），所以下面的比值是历史值。
 
 ### 纯 TLS 状态（实例里只放后端）
 

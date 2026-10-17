@@ -140,13 +140,17 @@ slow. `-DRSM_BACKEND_STD` restores `std::shared_mutex`. Measured on MinGW-w64 GC
 
 | | `RSM_BACKEND_STD` (`std::shared_mutex`) | `RSM_BACKEND_SRWLOCK` (default) |
 |---|---:|---:|
-| `lock+unlock` | 62.8 ns/pair | **23.4 ns/pair** (2.7×) |
-| `lock_shared+unlock_shared` | 76.4 ns/pair | **35.1 ns/pair** (2.2×) |
-| 2× nested exclusive | 70.9 ns | **32.9 ns** |
-| 2× nested shared | 108.1 ns | **66.1 ns** |
+| `lock+unlock` | 62.7 ns/pair | **24.2 ns/pair** (2.6×) |
+| `lock_shared+unlock_shared` | 64.4 ns/pair | **25.8 ns/pair** (2.5×) |
+| 2× nested exclusive | 72.5 ns | **33.9 ns** |
+| 2× nested shared | 86.7 ns | **47.2 ns** |
 | S7 shape vs `std::recursive_mutex` | 0.068× | **1.523×** |
-| `backend_contract` | **fails** (245 violations) | **passes** (0) |
+| `backend_contract` | **fails** | **passes** |
 | full suite | **fails** | **passes** |
+
+The shared rows were re-measured on v0.4.0: `is_held_exclusive()` now skips the
+`pthread_self()` call when no exclusive owner exists, which helps both backends.
+The exclusive and S7 rows were not affected by that change and predate it.
 
 On MSVC the switch is a no-op in effect (`std::shared_mutex` already is SRWLOCK):
 5.8 vs 5.7 ns, contract passes either way.
@@ -161,7 +165,9 @@ a prototype, i.e. it is the next 3× on that platform, not this one.
 
 Two further optimizations were prototyped and measured before being dropped.
 They are recorded so nobody repeats the work, and because the negative results
-say something about where the cost actually is.
+say something about where the cost actually is. The baselines here are from
+v0.3.x; v0.4.0 lowered the shared rows (section 6), so the ratios below are
+historical.
 
 ### TLS-only state (the instance holds nothing but the backend)
 

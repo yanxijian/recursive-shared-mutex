@@ -97,8 +97,8 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
   `std::shared_mutex` over winpthreads is ~11× slower than a native `SRWLOCK`,
   every `thread_local` access goes through emutls, and `try_lock()` on that
   backend is not even mutually exclusive. That is why MinGW now defaults to the native backend.
-- **MinGW-GCC with the native backend (the default)**: 62.8 → 23.4 ns per exclusive
-  lock/unlock pair (2.7×), 76.4 → 35.1 ns for the shared pair, and the
+- **MinGW-GCC with the native backend (the default)**: 62.7 → 24.2 ns per exclusive
+  lock/unlock pair (2.6×), 64.4 → 25.8 ns for the shared pair (2.5×), and the
   exclusive-only ratio goes from 0.067× to **1.52×** — faster than
   `std::recursive_mutex`. The backend contract test passes again.
 
