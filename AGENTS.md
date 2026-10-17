@@ -97,18 +97,21 @@ Behaviour changes, new knobs and fixes go under it (`Added` / `Changed` /
 
 ### R7 - A text file keeps its line endings **[CI]**
 
-This repository is deliberately mixed: C/C++ is CRLF (R1), most tooling files are
-LF, the older documents are CRLF, and `README.md` plus `docs/platform-notes.md`
-are genuinely mixed. Nothing notices a whole-file flip - not the compiler, not
-clang-format, not git - and a flip shows up as a rewrite of every line: a 194-line
-document becomes a 392-line diff without a word changed.
+C/C++ is CRLF + BOM (R1); **everything else is LF** - documentation, workflows,
+scripts - which is also what `.editorconfig` declares as its default. A handful of
+build files predate that and are still CRLF; they are named in `EOL_POLICY` inside
+`scripts/check_repo_rules.py`.
 
-- New files default to **LF**; the CRLF and mixed files are listed in `EOL_POLICY`
-  inside `scripts/check_repo_rules.py`.
+Nothing notices a whole-file flip - not the compiler, not clang-format, not git -
+and a flip shows up as a rewrite of every line: a 200-line document becomes a
+400-line diff without a word changed.
+
+- New files default to **LF**.
 - Rewriting a file with the wrong endings fails the build; `--fix` normalises the
-  ones the policy names and refuses the mixed ones (it cannot know which line is
-  which).
+  files the policy names. A `mixed` entry (none today) means the file must keep both
+  endings, and `--fix` refuses it.
 - Moving a file's entry in `EOL_POLICY` is the deliberate way to change its style.
+
 
 ### R8 - Think before making `try_*` throw **[review]**
 
