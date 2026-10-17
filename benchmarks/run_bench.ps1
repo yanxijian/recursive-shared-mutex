@@ -124,7 +124,7 @@ function Read-BaselineSpeedups([string]$path) {
 	return $speedups
 }
 
-function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [string]$outFile) {
+function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [string]$outFile, [string]$backend) {
 	$order = @()
 	foreach ($r in $rows) { if ($order -notcontains $r.Scenario) { $order += $r.Scenario } }
 
@@ -143,6 +143,7 @@ function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [st
 		$md.Add("- Runner: local")
 	}
 	$md.Add("- Host hw_concurrency: $([Environment]::ProcessorCount)")
+	if (-not [string]::IsNullOrWhiteSpace($backend)) { $md.Add("- Backend: $backend") }
 	$md.Add("- Dataset: 1,048,576 x uint32 (~4 MiB); nested reenter depth 3; read window 24 / write window 12")
 	$md.Add("")
 	$md.Add("> Absolute numbers are specific to the machine; the meaningful column is the speedup vs ``recursive_mutex`` measured in the same run.")
@@ -214,6 +215,12 @@ function Invoke-Toolchain([string]$kind) {
 	#                                identical hardware.
 	$name = if ($kind -eq "msvc") { "msvc" } else { "mingw-gcc" }
 	if ($env:GITHUB_ACTIONS -eq "true") { $name = "ci-$name" }
+	# Which backend these numbers come from. On MinGW it changed from
+	# std::shared_mutex/winpthreads to the native SRWLOCK, and the two are not
+	# comparable, so the report has to say which one it measured.
+	$backendLine = (& $exe --backend 2>&1 | Select-Object -First 1)
+	if (-not $Quiet) { Write-Host "backend: $backendLine" }
+
 	$outFile = Join-Path $OutDir "$name.md"
 	$rows = New-Object System.Collections.Generic.List[object]
 	foreach ($sc in $scenarios) {
@@ -224,7 +231,11 @@ function Invoke-Toolchain([string]$kind) {
 		$rows.Add([pscustomobject]@{ Scenario = $sc.Name; Impl = $sc.ImplRsm; Raw = $impl.Raw; MedianOpsPerSecond = $impl.MedianOpsPerSecond })
 	}
 
-	Write-Report $(if ($kind -eq "msvc") { "MSVC" } else { "MinGW-GCC" }) $label $rows $outFile
+	$backendText = if ($backendLine -match "^backend\|([^|]+)\|(\d+)$") {
+		"$($Matches[1]), $($Matches[2]) B"
+	}
+	else { $backendLine }
+	Write-Report $(if ($kind -eq "msvc") { "MSVC" } else { "MinGW-GCC" }) $label $rows $outFile $backendText
 
 	if (-not [string]::IsNullOrWhiteSpace($Baseline)) {
 		$old = Read-BaselineSpeedups $Baseline

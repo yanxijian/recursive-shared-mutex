@@ -425,6 +425,21 @@ namespace
 
 int main(int argc, char** argv)
 {
+	// --backend prints which backend the numbers below would come from and
+	// exits. benchmarks/run_bench.ps1 records it next to the results, because
+	// "MinGW numbers" means something different before and after the native
+	// backend became the default there.
+	if (hasFlag(argc, argv, "--backend"))
+	{
+#if defined(RSM_BACKEND_SRWLOCK)
+		const char* name = "rsm::detail::SrwLockBackend";
+#else
+		const char* name = "std::shared_mutex";
+#endif
+		std::printf("backend|%s|%zu\n", name, sizeof(rsm::RecursiveSharedMutex::backend_type));
+		return 0;
+	}
+
 	const Args a = parseArgs(argc, argv);
 	if (a.impl == "recursive_mutex")
 	{
