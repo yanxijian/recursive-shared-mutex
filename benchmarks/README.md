@@ -49,5 +49,12 @@ powershell -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 3 
 
 ## Checked-in results
 
+`results/<toolchain>.md` - measured on a real workstation, the representative numbers quoted elsewhere. Regenerate locally; CI does not touch them.
+
 - [results/msvc.md](results/msvc.md)
 - [results/mingw-gcc.md](results/mingw-gcc.md)
+
+`results/ci-<toolchain>.md` - the 4-core GitHub runner, refreshed by the weekly workflow. Kept only so run-to-run drift can be detected and gated on identical hardware; **do not compare these with the files above**.
+
+- [results/ci-msvc.md](results/ci-msvc.md)
+- [results/ci-mingw-gcc.md](results/ci-mingw-gcc.md)

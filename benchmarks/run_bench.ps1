@@ -206,7 +206,15 @@ function Invoke-Toolchain([string]$kind) {
 	if (-not $Quiet) { Write-Host "Building bench_rsm ($kind) ..." }
 	$exe = Build-Bench $kind
 
-	$outFile = Join-Path $OutDir $(if ($kind -eq "msvc") { "msvc.md" } else { "mingw-gcc.md" })
+	# Two families of file on purpose:
+	#   results/<toolchain>.md     - hand-measured on a real workstation, the
+	#                                representative numbers quoted in the README;
+	#   results/ci-<toolchain>.md  - the 4-core GitHub runner, kept only so run
+	#                                to run drift can be detected and gated on
+	#                                identical hardware.
+	$name = if ($kind -eq "msvc") { "msvc" } else { "mingw-gcc" }
+	if ($env:GITHUB_ACTIONS -eq "true") { $name = "ci-$name" }
+	$outFile = Join-Path $OutDir "$name.md"
 	$rows = New-Object System.Collections.Generic.List[object]
 	foreach ($sc in $scenarios) {
 		if (-not $Quiet) { Write-Host ">> [$kind] $($sc.Name)" }
