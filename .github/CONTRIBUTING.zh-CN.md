@@ -2,7 +2,7 @@
 
 [English](CONTRIBUTING.md) · **简体中文**
 
-<!-- translated-from: CONTRIBUTING.md sha256:80d561a4fe16 -->
+<!-- translated-from: .github/CONTRIBUTING.md sha256:80d561a4fe16 -->
 
 感谢你帮助改进 **recursive-shared-mutex**。
 
