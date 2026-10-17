@@ -1,4 +1,4 @@
-// Benchmark: RecursiveSharedMutex vs std::recursive_mutex (C++17)
+﻿// Benchmark: RecursiveSharedMutex vs std::recursive_mutex (C++17)
 // One configuration per process (recommended on MinGW after shared_mutex stress).
 //
 // Output line:
