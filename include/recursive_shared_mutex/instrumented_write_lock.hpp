@@ -76,8 +76,8 @@ namespace rsm
 			}
 
 		private:
-			static void record(std::atomic<std::uint64_t>& count, std::atomic<std::uint64_t>& total,
-			                   std::atomic<std::uint64_t>& maxNs, double seconds)
+			static void record(std::atomic<std::uint64_t>& count, std::atomic<std::uint64_t>& total, std::atomic<std::uint64_t>& maxNs,
+			                   double seconds)
 			{
 				const auto ns = static_cast<std::uint64_t>(seconds * 1e9); // seconds >= 0
 				count.fetch_add(1, std::memory_order_relaxed);

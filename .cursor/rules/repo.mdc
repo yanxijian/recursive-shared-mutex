@@ -12,7 +12,7 @@ reasoning is in AGENTS.md.
 
 - C/C++ sources: **UTF-8 with BOM + CRLF**. `clang-format` writes CRLF but never
   a BOM. Repair with `python3 scripts/check_repo_rules.py --fix`.
-- **120 columns**, tab-indented; `.clang-format` is the authority.
+- **140 columns**, tab-indented; `.clang-format` is the authority.
 - Windows libraries through `target_link_libraries`, never `#pragma comment(lib)`.
 - Headers: `#pragma once` first, no `using namespace` at namespace scope.
 - `project(VERSION)` == `RSM_VERSION_MAJOR/MINOR/PATCH`; `CHANGELOG.md` keeps an

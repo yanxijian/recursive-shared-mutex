@@ -244,9 +244,8 @@ namespace
 int main(int argc, char** argv)
 {
 	const Options opt = parse(argc, argv);
-	std::printf(
-	    "shared_mutex backend contract\n  backend: %s (sizeof=%zu)\n  toolchain: %s\n  threads=%d iters=%d rounds=%d\n",
-	    backendName(), sizeof(Backend), toolchain().c_str(), opt.threads, opt.iters, opt.rounds);
+	std::printf("shared_mutex backend contract\n  backend: %s (sizeof=%zu)\n  toolchain: %s\n  threads=%d iters=%d rounds=%d\n",
+	            backendName(), sizeof(Backend), toolchain().c_str(), opt.threads, opt.iters, opt.rounds);
 
 	const long long v1 = exclusiveVsExclusive(opt);
 	const long long v2 = writerVsReader(opt);

@@ -98,9 +98,9 @@
 //   mode is not misuse by itself; same-thread resume is legitimate. Opt out
 //   with RSM_NO_THREAD_MIGRATION_NOTICE.
 #if defined(__cpp_impl_coroutine) && __cpp_impl_coroutine >= 201902L && !defined(RSM_NO_THREAD_MIGRATION_NOTICE)
-#pragma message("RecursiveSharedMutex is bound to OS threads: a task that "                                            \
-                "resumes on a different physical thread will strand its "                                              \
-                "shared slot and starve writers. Same-thread resume is "                                               \
+#pragma message("RecursiveSharedMutex is bound to OS threads: a task that "                                                                \
+                "resumes on a different physical thread will strand its "                                                                  \
+                "shared slot and starve writers. Same-thread resume is "                                                                   \
                 "safe. See the THREAD-BINDING CONSTRAINT above.")
 #endif
 
@@ -300,9 +300,8 @@ namespace rsm
 			}
 			if (under_exclusive_ != 0)
 			{
-				throw std::system_error(
-				    std::make_error_code(std::errc::operation_not_permitted),
-				    "RecursiveSharedMutex::unlock while shared_lock still nested under unique_lock");
+				throw std::system_error(std::make_error_code(std::errc::operation_not_permitted),
+				                        "RecursiveSharedMutex::unlock while shared_lock still nested under unique_lock");
 			}
 			exclusive_count_ = 0;
 			owner_.store(std::thread::id(), std::memory_order_relaxed);
