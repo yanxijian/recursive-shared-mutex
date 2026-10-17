@@ -124,7 +124,7 @@ jobs:
         # pushed either way, so a maintainer can open it with one click - see the
         # fallback step below.
         continue-on-error: true
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && (inputs.update_mode == 'auto-merge' || inputs.update_mode == 'pull-request')
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'pull-request'
         uses: peter-evans/create-pull-request@v6
         with:
           branch: bench/refresh-${{ matrix.name }}
@@ -143,38 +143,51 @@ jobs:
               limitation), and a results-only change does not need the full matrix.
 
       - name: Merge it, so nobody has to
+        # A pull request for a results file invites a click that nobody wants to
+        # make, and having one created and squashed within a second trips GitHub's
+        # PR-event run ("workflow file issue") and leaves red Xs behind. So in
+        # auto-merge mode the commit goes straight onto main through the API. The
+        # commit itself is the audit trail, and `git revert` is the undo.
         if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'auto-merge'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $num = "${{ steps.pr.outputs.pull-request-number }}"
-          if (-not $num) {
-            Write-Host "Nothing to merge: the results file is unchanged."
+          $branch = "bench/refresh-${{ matrix.name }}"
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add benchmarks/results
+          if (git diff --cached --quiet) {
+            Write-Host "Nothing to commit: the results file is unchanged."
             exit 0
           }
-          # Only results files may be touched. If the bot ever picked up anything
-          # else, leave the PR for a human instead of merging blindly.
-          $paths = @(gh pr view $num --json files --jq '.files[].path')
-          $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/ci-[A-Za-z0-9._-]+\.md$' })
+          # Refuse to carry anything other than the CI results files.
+          $paths = @(git diff --cached --name-only)
+          $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/ci-[A-Za-z0-9._-]+[.]md$' })
           if ($unexpected.Count -gt 0) {
-            Write-Host ("::warning::not auto-merging #{0}: it touches {1}" -f $num, ($unexpected -join ", "))
+            Write-Host ("::warning::not committing: unexpected paths {0}" -f ($unexpected -join ", "))
             exit 0
           }
-          # Mergeability is computed asynchronously right after the PR appears, and
-          # the other matrix cell may be merging at the same time; retry a few times.
-          for ($i = 1; $i -le 6; $i++) {
-            gh pr merge $num --squash --delete-branch 2>&1 | Write-Host
+          git commit -m "bench: refresh ${{ matrix.name }} results"
+          # The other matrix cell merges concurrently, so a rejected fast-forward
+          # is expected; rebase and retry.
+          for ($i = 1; $i -le 4; $i++) {
+            git push --force origin "HEAD:$branch" | Write-Host
+            gh api -X POST "repos/$env:GITHUB_REPOSITORY/merges" -f base=main -f head=$branch `
+              -f commit_message="bench: refresh ${{ matrix.name }} results" | Write-Host
             if ($LASTEXITCODE -eq 0) {
-              Write-Host "Auto-merged #$num ($($paths -join ', '))."
+              Write-Host ("Merged {0} into main ({1})." -f $branch, ($paths -join ", "))
+              git push origin --delete $branch | Write-Host
               exit 0
             }
-            Start-Sleep -Seconds 10
+            Start-Sleep -Seconds 5
+            git fetch origin main | Write-Host
+            git rebase origin/main | Write-Host
           }
-          throw "could not merge #$num after 6 attempts"
+          throw "could not merge $branch after 4 attempts"
 
       - name: Report the outcome
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && (inputs.update_mode == 'pull-request' || inputs.update_mode == 'auto-merge')
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'pull-request'
         shell: pwsh
         run: |
           $branch = "bench/refresh-${{ matrix.name }}"

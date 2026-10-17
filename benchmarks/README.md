@@ -18,7 +18,7 @@ The driver is built through CMake (`-DRSM_BUILD_BENCHMARKS=ON`, target `bench_rs
 
 [`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) runs these scenarios on a pinned `windows-2022` runner:
 
-- **Weekly (Mon 03:00 UTC)** and on demand: measure MSVC and MinGW, open a PR that refreshes `results/ci-*.md`, and **merge it automatically** (`update_mode: auto-merge` by default; `pull-request` leaves it for review, `commit` pushes straight to the branch, `none` only measures). The auto-merge refuses anything outside `benchmarks/results/ci-*.md`, so the pipeline cannot touch code or the desktop numbers.
+- **Weekly (Mon 03:00 UTC)** and on demand: measure MSVC and MinGW and **commit the refreshed `results/ci-*.md` to `main` by itself** (`update_mode: auto-merge` by default; `pull-request` opens a PR and leaves it for review, `commit` to whatever branch the workflow runs on, `none` only measures). The commit is refused unless every changed path matches `benchmarks/results/ci-*.md`, so the pipeline cannot touch code or the desktop numbers.
 - **On PRs touching `include/**` or `benchmarks/**`**: a short run compared against the committed baseline. A scenario that drops by more than 25% fails the job.
 
 Two deliberate limits:
@@ -26,7 +26,7 @@ Two deliberate limits:
 - Absolute ops/s belong to the runner that produced them. The number to look at is the speedup vs `recursive_mutex` measured **in the same run**.
 - The gate only compares against a baseline that CI produced itself (the file says `Runner: GitHub Actions`). The hand-measured files are on different hardware, so the gate warns instead of failing until the workflow has refreshed them once.
 - **GitHub runners have 4 cores.** Shared locking pays off when readers outnumber cores, so on CI the S1-S5 speedups collapse towards parity (measured: 0.8-1.06x) even though a 32-core desktop shows 13x. CI numbers are for run-to-run regression detection on fixed hardware, not for the absolute story; the run_bench.ps1 report says so inline when it sees fewer than 8 cores.
-- Opening the refresh PR needs Settings > Actions > General > *Allow GitHub Actions to create and approve pull requests*. Without it the job still measures and pushes `bench/refresh-<toolchain>`, prints a compare link, and warns - it does not fail.
+- Auto-merge needs no repository setting, because no pull request is involved. Only `update_mode: pull-request` needs Settings > Actions > General > *Allow GitHub Actions to create and approve pull requests*; the job warns and prints a compare link if that is off.
 
 Before the metrics mean anything on a big machine, run it locally:
 
