@@ -144,10 +144,10 @@ namespace rsm
 				{
 					return;
 				}
-				if (sink_ != nullptr)
-				{
-					report_hold(std::chrono::duration<double>(clock::now() - acquired_).count());
-				}
+				// Timestamp before the release, report after it. The Recorder contract
+				// says a sink is never called while the lock is held, and user code in
+				// a sink has no business running inside the critical section.
+				const clock::time_point released = sink_ != nullptr ? clock::now() : clock::time_point{};
 				try
 				{
 					mtx_->unlock(); // accounting-consistent unlock cannot throw
@@ -160,6 +160,7 @@ namespace rsm
 				}
 				if (sink_ != nullptr)
 				{
+					report_hold(std::chrono::duration<double>(released - acquired_).count());
 					report_wait(std::chrono::duration<double>(acquired_ - start_).count());
 				}
 			}

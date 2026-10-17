@@ -218,3 +218,67 @@ TEST_CASE("concurrent instrumented writers count exactly", "[metrics][M7]")
 	REQUIRE(after.hold_count - before.hold_count == kThreads * kIters);
 	REQUIRE(after.wait_count - before.wait_count == kThreads * kIters);
 }
+
+TEST_CASE("hold is reported after the release, never inside the critical section", "[metrics][M8]")
+{
+	// The Recorder contract says a sink is never called while the lock is held, so
+	// user code there cannot end up inside the critical section. Prove it from a
+	// second thread: while HOLD is being reported, the mutex must be acquirable.
+	RecursiveSharedMutex mtx;
+	std::atomic<bool> reporting{false};
+	std::atomic<bool> go{false};
+	std::atomic<bool> stop{false};
+	std::atomic<bool> freed{false};
+
+	struct WindowRecorder final : Recorder
+	{
+		explicit WindowRecorder(std::atomic<bool>& flag)
+		    : reporting_(flag)
+		{
+		}
+		void observe_write_wait(double) override
+		{
+		}
+		void observe_write_hold(double) override
+		{
+			reporting_.store(true, std::memory_order_release);
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+			while (std::chrono::steady_clock::now() < deadline)
+			{
+				std::this_thread::yield();
+			}
+			reporting_.store(false, std::memory_order_release);
+		}
+		std::atomic<bool>& reporting_;
+	} recorder(reporting);
+
+	std::thread prober([&]() {
+		while (!go.load(std::memory_order_acquire))
+		{
+			std::this_thread::yield();
+		}
+		while (!stop.load(std::memory_order_acquire))
+		{
+			if (mtx.try_lock())
+			{
+				if (reporting.load(std::memory_order_acquire))
+				{
+					freed.store(true, std::memory_order_release);
+				}
+				mtx.unlock();
+			}
+			std::this_thread::yield();
+		}
+	});
+
+	set_recorder(&recorder);
+	{
+		instrumented_write_lock guard(mtx);
+		go.store(true, std::memory_order_release); // prober starts while the guard is held
+	}
+	stop.store(true, std::memory_order_release);
+	prober.join();
+	set_recorder(nullptr);
+
+	REQUIRE(freed.load());
+}
