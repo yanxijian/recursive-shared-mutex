@@ -147,6 +147,12 @@ function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [st
 	$md.Add("")
 	$md.Add("> Absolute numbers are specific to the machine; the meaningful column is the speedup vs ``recursive_mutex`` measured in the same run.")
 	$md.Add("")
+	if ([Environment]::ProcessorCount -lt 8) {
+		$md.Add("> **Low-core host ($([Environment]::ProcessorCount) cores).** Shared locking pays off when readers outnumber cores: below ~8 cores the")
+		$md.Add("> readers barely overlap and RSM can look slower than ``recursive_mutex``. These numbers are for run-to-run regression on this")
+		$md.Add("> machine, not a statement about a many-core desktop.")
+		$md.Add("")
+	}
 
 	if ($BarChart -ne "none") {
 		$md.Add("## Speedup at a glance")
