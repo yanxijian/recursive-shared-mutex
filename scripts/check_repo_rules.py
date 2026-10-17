@@ -225,24 +225,28 @@ TEXT_SUFFIXES = {
 }
 
 EOL_DEFAULT = "lf"
-# Documentation, workflows and scripts are LF, matching .editorconfig's [*]
-# default. These predate that and are still CRLF; converting them is a separate,
-# deliberate change - which is why they are named here rather than fixed quietly.
-EOL_POLICY = {
-    ".editorconfig": "crlf",
-    ".gitignore": "crlf",
-    ".github/ISSUE_TEMPLATE/config.yml": "crlf",
-    ".github/workflows/ci.yml": "crlf",
-    "CMakeLists.txt": "crlf",
-    "LICENSE": "crlf",
-    "cmake/recursive_shared_mutexConfig.cmake.in": "crlf",
-    "examples/CMakeLists.txt": "crlf",
-    "tests/CMakeLists.txt": "crlf",
+# The standard lives in .gitattributes; this is the working-tree half of it.
+# C/C++ is owned by R1 (BOM + CRLF). Batch files are the only real exception:
+# cmd.exe expects CRLF. Everything else - documentation, workflows, build files,
+# scripts - is LF, which is also .editorconfig's [*] default.
+EOL_BY_SUFFIX = {
+    ".bat": "crlf",
+    ".cmd": "crlf",
+    ".sh": "lf",
 }
-# "mixed" is still accepted for a path listed here: it means the file must keep
-# both endings. No file needs it today.
+# Per-path overrides go here if a file ever has to differ from its suffix.
+EOL_POLICY = {}
+# "mixed" is accepted for a path listed here: it means the file must keep both
+# endings, and --fix refuses it. No file needs it today.
 
-TEXT_NAMES = {"LICENSE", ".gitignore", ".editorconfig"}
+GITATTRIBUTES_REQUIRED = (
+    "* text=auto eol=lf",
+    "*.cpp   -text",
+    "*.cmd   text eol=crlf",
+    "*.sh    text eol=lf",
+)
+
+TEXT_NAMES = {"LICENSE", ".gitignore", ".editorconfig", ".gitattributes"}
 
 
 def eol_style(raw: bytes) -> str:
@@ -269,7 +273,7 @@ def check_line_endings(files: list[Path], rep: Report, do_fix: bool) -> None:
             continue
 
         actual = eol_style(raw)
-        expected = EOL_POLICY.get(rel(path), EOL_DEFAULT)
+        expected = EOL_POLICY.get(rel(path)) or EOL_BY_SUFFIX.get(path.suffix.lower(), EOL_DEFAULT)
         if actual == expected or (expected == "mixed" and actual == "mixed"):
             continue
 
@@ -294,6 +298,17 @@ def check_line_endings(files: list[Path], rep: Report, do_fix: bool) -> None:
 # R5 - one version, two copies: CMakeLists VERSION and the header macros
 #      (this repository's own; they already drifted once and broke find_package)
 # ---------------------------------------------------------------------------
+def check_gitattributes(rep: Report) -> None:
+    path = ROOT / ".gitattributes"
+    if not path.exists():
+        rep.bad(".gitattributes", "eol", "missing - the line-ending standard has to be declared there")
+        return
+    text = path.read_text(encoding="utf-8")
+    for required in GITATTRIBUTES_REQUIRED:
+        if required not in text:
+            rep.bad(".gitattributes", "eol", f"no `{required}` rule - R7 and .gitattributes must agree")
+
+
 def check_version(rep: Report) -> None:
     cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
     header = (ROOT / "include/recursive_shared_mutex/recursive_shared_mutex.hpp").read_text(encoding="utf-8-sig")
@@ -350,6 +365,7 @@ def main() -> int:
     check_pragma_comment(paths, rep)
     check_headers(paths, rep)
     check_line_endings(files, rep, args.fix)
+    check_gitattributes(rep)
     check_version(rep)
     check_changelog(rep)
 
