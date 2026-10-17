@@ -190,6 +190,9 @@ jobs:
           MINUTES: ${{ inputs.minutes }}
           THREADS: ${{ inputs.threads }}
         run: |
+          # actions/checkout uses the dispatch SHA, not the current main, so a
+          # batch that runs for hours would push a commit based on a stale tip.
+          git pull --ff-only origin main
           python3 - <<'PY'
           import datetime, os, pathlib
 
@@ -215,7 +218,10 @@ jobs:
             exit 1
           fi
           git commit -m "chore(soak): record batch ${GITHUB_RUN_ID}"
-          git push
+          if ! git push; then
+            git pull --rebase origin main
+            git push
+          fi
 
       - name: Fail the run on a red verdict
         if: ${{ always() }}
