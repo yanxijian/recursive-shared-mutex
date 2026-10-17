@@ -1,8 +1,9 @@
 ﻿// Backend contract check for the mutex the library is built on.
 //
-// With RSM_BACKEND_SRWLOCK this checks the SRWLOCK backend; otherwise it checks
-// std::shared_mutex. Build both on Windows/MinGW: the flag is what makes the
-// contract hold there.
+// Checks `rsm::RecursiveSharedMutex::backend_type`, whatever it happens to be:
+// the native SRWLOCK wrapper on Windows/MinGW (the default there), or
+// std::shared_mutex elsewhere. Build it both ways with RSM_BACKEND_STD to see
+// the difference on MinGW.
 //
 // Purpose: `rsm::RecursiveSharedMutex` (and any recursive shared mutex) is only
 // as correct as its backend. On MinGW-w64 GCC 13.2 (libstdc++ over winpthreads)
@@ -39,7 +40,9 @@ namespace
 
 	const char* backendName()
 	{
-#if defined(RSM_BACKEND_SRWLOCK)
+#if defined(RSM_BACKEND_SRWLOCK) && defined(RSM_BACKEND_AUTO_SELECTED)
+		return "rsm::detail::SrwLockBackend (auto-selected on MinGW; RSM_BACKEND_STD to opt out)";
+#elif defined(RSM_BACKEND_SRWLOCK)
 		return "rsm::detail::SrwLockBackend (RSM_BACKEND_SRWLOCK)";
 #else
 		return "std::shared_mutex";
@@ -259,7 +262,7 @@ int main(int argc, char** argv)
 	}
 	std::printf("VERDICT: BACKEND VIOLATES MUTUAL EXCLUSION (%lld violations).\n", violations);
 	std::printf("  Any recursive-shared-mutex wrapper on this toolchain is unsound.\n");
-	std::printf("  Known case: MinGW-w64 + libstdc++/winpthreads. Use a native SRWLOCK/pthread\n");
-	std::printf("  backend, or do not ship try_lock-based locking on this toolchain.\n");
+	std::printf("  Known case: MinGW-w64 + libstdc++/winpthreads (i.e. RSM_BACKEND_STD on MinGW).\n");
+	std::printf("  Drop RSM_BACKEND_STD to get the native SRWLOCK backend, or move off this toolchain.\n");
 	return 1;
 }
