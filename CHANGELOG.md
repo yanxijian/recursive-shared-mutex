@@ -7,13 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.1] - 2026-10-17
+
 ### Changed
 
-- The agent signature is spelled `DeepSeek v4.1-flash <noreply@deepseek.com>`: vendor plus the full deployment id, the way `Claude Sonnet 4.5` reads. The previous `deepseek-flash v4.1-flash` said "flash" twice because it was two strings concatenated without reading the result. Historical trailers were rewritten to the same spelling, so one model does not appear as two.
-- The agent-signature rule is **advisory and vendor-neutral**: `AGENTS.md` names no model, version or address. Signing as whatever the agent actually is, with or without a version, with or without an address, or not signing at all are all acceptable; the commit author stays the maintainer either way. This supersedes the pinned-identity entry below - the historical trailers keep the signature of the model that produced them, and are not a rule for the next one.
-- The agent signature is pinned to model **and** deployment version: `Co-authored-by: deepseek-flash v4.1-flash <noreply@deepseek.com>`. The version comes from the maintainer because an agent cannot read its own deployment identifier. Historical trailers were normalised to the same string.
-- The `Co-authored-by` convention now has the **agent sign itself**: the trailer names the model that produced the change (`Co-authored-by: deepseek-flash <noreply@deepseek.com>`) instead of the placeholder `review <review@local>`. The commit author stays the maintainer, because an address that belongs to nobody is unattributed on GitHub and invisible to `git log --author`.
-- Commit authorship normalised: the 35 commits that had been authored as `review <review@local>` are now authored by the maintainer with `Co-authored-by: review <review@local>` in the body. Same trees, same order, same count - only the author and the trailer differ.
 - CI is filtered by build inputs: `ci.yml` and `platform-matrix.yml` now list the paths that can affect a build, so a documentation or script change starts no compiler. The rules checks moved to a new always-on `hygiene.yml` (line endings, translations, and every relative Markdown link), because those are the checks a documentation change can actually break.
 - The three governance documents moved from the root into `.github/`
   (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` and their Chinese
@@ -36,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI is tiered so a pull request does not wait for the exhaustive matrix: PRs run `ci.yml`, `contract-mingw`, the MinGW suite and the sanitizers (~90 s of critical path), while the other 11 cells, the ARM64 preview runner and the benchmark gate wait for `main`, the weekly schedule, or a change to `include/**`. Docs-only pushes run nothing but `ci.yml`.
 - Housekeeping: the `clang-format` CI job is pinned to 22.1.8 through PyPI instead of taking whatever the runner image ships; `benchmarks/results/*.md` were re-measured on v0.3.0 (median of 3 runs, with a `Run-to-run spread` line - the balanced scenario has swung 250% between runs on the same machine, so the speedups are order-of-magnitude); `docs/roadmap.md` reflects what actually landed.
 - The benchmark PR gate now fails only on S6 (sharded) and S7 (exclusive-only), at 40%: on a 4-core runner the read-parallelism scenarios cannot show a real regression there, only scheduling noise. Benchmark reports record the backend they measured (`--backend`, printed as a `- Backend:` line). MinGW numbers before and after v0.3.0 are not comparable: the default backend changed there.
+- Agent commits: the commit is authored by the maintainer and carries a
+  `Co-authored-by: DeepSeek v4.1-flash <noreply@deepseek.com>` trailer. The
+  trailer is advisory and vendor-neutral (AGENTS.md prescribes no model, version
+  or address), and history was rewritten so every agent commit reads the same
+  way.
 
 ## [v0.3.0] - 2026-10-17
 
