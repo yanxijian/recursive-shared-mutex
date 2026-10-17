@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `lock()` no longer scans the shared-slot table when the thread holds no shared locks, and uses a `try_lock`-first path when it does: the exclusive path is now constant (5.4 ns) instead of growing to 107 ns while 250 shared locks are held. The shared path is unchanged and still linear - the header now documents the measured cost.
+- `static_assert` that `std::atomic<std::thread::id>` is lock-free (the owner token is on every hot path), and a debug assertion against destroying a mutex this thread still holds shared.
 - CI is tiered so a pull request does not wait for the exhaustive matrix: PRs run `ci.yml`, `contract-mingw`, the MinGW suite and the sanitizers (~90 s of critical path), while the other 11 cells, the ARM64 preview runner and the benchmark gate wait for `main`, the weekly schedule, or a change to `include/**`. Docs-only pushes run nothing but `ci.yml`.
 - Housekeeping: the `clang-format` CI job is pinned to 22.1.8 through PyPI instead of taking whatever the runner image ships; `benchmarks/results/*.md` were re-measured on v0.3.0 (median of 3 runs, with a `Run-to-run spread` line - the balanced scenario has swung 250% between runs on the same machine, so the speedups are order-of-magnitude); `docs/roadmap.md` reflects what actually landed.
 - The benchmark PR gate now fails only on S6 (sharded) and S7 (exclusive-only), at 40%: on a 4-core runner the read-parallelism scenarios cannot show a real regression there, only scheduling noise. Benchmark reports record the backend they measured (`--backend`, printed as a `- Backend:` line). MinGW numbers before and after v0.3.0 are not comparable: the default backend changed there.

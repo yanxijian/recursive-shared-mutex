@@ -26,6 +26,65 @@ TEST_CASE("exclusive lock reentrancy", "[single][T1]")
 	mtx.unlock();
 }
 
+TEST_CASE("exclusive path stays flat while many shared locks are held", "[perf][T12]")
+{
+	// Holding shared locks on other mutexes must not slow the exclusive path down.
+	// The upgrade guard needs a slot lookup, and that lookup is linear in how many
+	// shared locks the thread holds; this test is the regression gate for keeping
+	// the scan off the common path (measured: 4.6 -> 30 ns/op at 64 held slots
+	// before the try_lock-first restructuring, 5-6 ns/op after).
+	constexpr int kHeld = 64;
+	constexpr int kIterations = 20000;
+
+	std::vector<RecursiveSharedMutex> held(kHeld);
+	RecursiveSharedMutex probe;
+
+	auto measure = [&probe](int iterations) {
+		const auto start = std::chrono::steady_clock::now();
+		for (int i = 0; i < iterations; ++i)
+		{
+			probe.lock();
+			probe.unlock();
+		}
+		const auto done = std::chrono::steady_clock::now();
+		return std::chrono::duration<double, std::nano>(done - start).count() / iterations;
+	};
+
+	measure(kIterations / 4); // warm up
+	const double withNoneHeld = measure(kIterations);
+
+	for (auto& m : held)
+	{
+		m.lock_shared();
+	}
+	const double withManyHeld = measure(kIterations);
+
+	// Behavioural part: the exclusive path still works, and an upgrade attempt on a
+	// mutex this thread holds shared still throws rather than deadlocking.
+	REQUIRE(held.front().try_lock_shared()); // recursive shared under a shared lock
+	held.front().unlock_shared();
+	bool upgraded = false;
+	try
+	{
+		held.front().lock();
+	}
+	catch (const std::system_error&)
+	{
+		upgraded = true;
+	}
+	REQUIRE(upgraded);
+
+	for (auto& m : held)
+	{
+		m.unlock_shared();
+	}
+
+	// Timing part is deliberately loose (shared CI runners are noisy) but still
+	// catches the old linear scan, which made this ratio 6x.
+	INFO("with none held: " << withNoneHeld << " ns/op, with " << kHeld << " held: " << withManyHeld << " ns/op");
+	REQUIRE(withManyHeld < withNoneHeld * 4.0);
+}
+
 TEST_CASE("shared lock reentrancy", "[single][T2]")
 {
 	RecursiveSharedMutex mtx;
