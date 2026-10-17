@@ -2,7 +2,7 @@
 
 [English](validation.md) · **简体中文**
 
-<!-- translated-from: docs/validation.md sha256:bf196dba1f65 -->
+<!-- translated-from: docs/validation.md sha256:7e1647c89764 -->
 
 这页定义本仓库里"已验证"是什么意思、证据怎么记录，以及证据**不**覆盖什么。
 soak workflow 的规模按这里定；`verification/soak-history.md` 是账本。
@@ -71,7 +71,8 @@ soak workflow 的规模按这里定；`verification/soak-history.md` 是账本�
   四个 seed、四个 job-minutes、记录一行。用它测 runner 的 ops/s。
 - **里程碑批次**——例如 `shards=4, minutes=120, seeds_per_shard=8`：32 个 seed、
   8 job-hours。`record=true`（默认）会往 `verification/soak-history.md` 追加一行；
-  workflow 只提交这个文件。
+  workflow 只提交这个文件。提交用 `GITHUB_TOKEN` 推送，因此不会触发规则检查——
+  真正让它保持狭窄的是"拒绝该文件之外的任何路径"这个护栏。
 
 6 小时 job 上限是约束：`minutes` 保持在 300 或以下。
 

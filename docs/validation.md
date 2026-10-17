@@ -76,7 +76,9 @@ batch first and read `ops` from the history before committing to the count.
   the runner's ops/s.
 - **Milestone batch** - for example `shards=4, minutes=120, seeds_per_shard=8`:
   32 seeds, 8 job-hours. Set `record=true` (the default) to append one row to
-  `verification/soak-history.md`; the workflow commits only that file.
+  `verification/soak-history.md`; the workflow commits only that file. The commit
+  is pushed with `GITHUB_TOKEN`, so it does not start the rules job - the guard
+  that refuses any other path is what keeps it narrow.
 
 The 6-hour job limit is the constraint: keep `minutes` at 300 or below.
 
