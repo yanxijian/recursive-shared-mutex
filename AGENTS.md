@@ -95,7 +95,22 @@ analysis all miss it. `#include <windows.h>` in a header is fine - it is the
 Behaviour changes, new knobs and fixes go under it (`Added` / `Changed` /
 `Fixed`). "No changelog needed" is only true for typo fixes in comments.
 
-### R7 - Think before making `try_*` throw **[review]**
+### R7 - A text file keeps its line endings **[CI]**
+
+This repository is deliberately mixed: C/C++ is CRLF (R1), most tooling files are
+LF, the older documents are CRLF, and `README.md` plus `docs/platform-notes.md`
+are genuinely mixed. Nothing notices a whole-file flip - not the compiler, not
+clang-format, not git - and a flip shows up as a rewrite of every line: a 194-line
+document becomes a 392-line diff without a word changed.
+
+- New files default to **LF**; the CRLF and mixed files are listed in `EOL_POLICY`
+  inside `scripts/check_repo_rules.py`.
+- Rewriting a file with the wrong endings fails the build; `--fix` normalises the
+  ones the policy names and refuses the mixed ones (it cannot know which line is
+  which).
+- Moving a file's entry in `EOL_POLICY` is the deliberate way to change its style.
+
+### R8 - Think before making `try_*` throw **[review]**
 
 `try_lock`, `try_lock_shared`, `unlock` and `unlock_shared` are `Lockable` /
 `SharedLockable` members: they must not throw on the "could not acquire" path.
@@ -103,7 +118,7 @@ Exhausting the per-thread slot table makes `lock_shared()` throw
 `resource_unavailable_try_again` while `try_lock_shared()` returns `false` - keep
 that asymmetry, it is deliberate and tested by `tests/backend_contract.cpp`.
 
-### R8 - Never re-enter the backend **[review]**
+### R9 - Never re-enter the backend **[review]**
 
 Any change that lets the *same thread* call the underlying `std::shared_mutex`
 twice is undefined behaviour per `[thread.sharedmutex]`. Recursion is intercepted
@@ -111,7 +126,7 @@ in `owner_` / `exclusive_count_` / `under_exclusive_` before the backend is
 touched. If you are adding a fast path, prove it cannot reach `mtx_.lock()` when
 `owner_ == this_thread::get_id()`.
 
-### R9 - Parameter passing **[review]**
+### R10 - Parameter passing **[review]**
 
 Defaults for new and touched APIs; not a mandate to rewrite stable signatures.
 
@@ -125,13 +140,13 @@ Defaults for new and touched APIs; not a mandate to rewrite stable signatures.
 Review priority when asked to review: **correctness > lifetime > threading >
 style**. List what you deliberately left alone and why.
 
-### R10 - Do not store references to TLS state **[review]**
+### R11 - Do not store references to TLS state **[review]**
 
 The slot table is `thread_local`. A `SharedDepthSlot*` must not outlive the
 mutex operation that fetched it, must not be cached in a member, and must not be
 handed to another thread.
 
-### R11 - Benchmark numbers carry their machine **[review]**
+### R12 - Benchmark numbers carry their machine **[review]**
 
 `benchmarks/results/*.md` are hand-measured on a desktop;
 `benchmarks/results/ci-*.md` come from the 4-core CI runner and are only for
