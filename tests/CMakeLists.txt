@@ -36,3 +36,16 @@ target_compile_definitions(rsm_tests PRIVATE RSM_ENABLE_TEST_HOOKS=1)
 include(Catch)
 catch_discover_tests(rsm_tests)
 catch_discover_tests(rsm_metrics_tests)
+
+# Manual concurrency driver (readers + one writer). It used to be built by hand,
+# which is how it rots; it also doubles as the smallest reproduction of the
+# sharded-lock scenario. Off by default because it is a throughput loop, not a
+# unit test.
+option(RSM_BUILD_STRESS "Build the concurrency stress driver" OFF)
+if(RSM_BUILD_STRESS)
+	add_executable(rsm_stress stress_concurrent.cpp)
+	target_link_libraries(rsm_stress PRIVATE rsm::recursive_shared_mutex)
+	set_target_properties(rsm_stress PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+	add_test(NAME stress_concurrent COMMAND rsm_stress)
+	set_tests_properties(stress_concurrent PROPERTIES TIMEOUT 180)
+endif()
