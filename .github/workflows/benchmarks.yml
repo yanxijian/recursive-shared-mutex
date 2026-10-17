@@ -118,6 +118,12 @@ jobs:
         run: git --no-pager diff --stat -- benchmarks/results
 
       - name: Open a PR with the refreshed numbers
+        id: pr
+        # Not fatal: creating PRs requires the repository setting
+        # "Allow GitHub Actions to create and approve pull requests". The branch is
+        # pushed either way, so a maintainer can open it with one click - see the
+        # fallback step below.
+        continue-on-error: true
         if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode != 'commit' && inputs.update_mode != 'none'
         uses: peter-evans/create-pull-request@v6
         with:
@@ -134,6 +140,20 @@ jobs:
             - Opened by `.github/workflows/benchmarks.yml`. It carries no checks:
               PRs created with `GITHUB_TOKEN` do not trigger workflows (GitHub
               limitation) - acceptable for a results-only change.
+
+      - name: Report the outcome
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode != 'none'
+        shell: pwsh
+        run: |
+          $branch = "bench/refresh-${{ matrix.name }}"
+          if ("${{ steps.pr.outcome }}" -eq "success") {
+            Write-Host "Opened or updated a pull request from $branch."
+          }
+          else {
+            $url = "${{ github.server_url }}/${{ github.repository }}/compare/main...$branch?expand=1"
+            Write-Host "::warning::Could not open the PR. Either enable Settings > Actions > General > 'Allow GitHub Actions to create and approve pull requests', or run this workflow with update_mode=commit. The branch was pushed: $url"
+            Write-Host $url
+          }
 
   # ---------------------------------------------------------------------------
   # PR gate: short run, compare against the committed baseline, fail on a real

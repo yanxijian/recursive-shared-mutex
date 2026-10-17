@@ -25,6 +25,15 @@ Two deliberate limits:
 
 - Absolute ops/s belong to the runner that produced them. The number to look at is the speedup vs `recursive_mutex` measured **in the same run**.
 - The gate only compares against a baseline that CI produced itself (the file says `Runner: GitHub Actions`). The hand-measured files are on different hardware, so the gate warns instead of failing until the workflow has refreshed them once.
+- **GitHub runners have 4 cores.** Shared locking pays off when readers outnumber cores, so on CI the S1-S5 speedups collapse towards parity (measured: 0.8-1.06x) even though a 32-core desktop shows 13x. CI numbers are for run-to-run regression detection on fixed hardware, not for the absolute story; the run_bench.ps1 report says so inline when it sees fewer than 8 cores.
+- Opening the refresh PR needs Settings > Actions > General > *Allow GitHub Actions to create and approve pull requests*. Without it the job still measures and pushes `bench/refresh-<toolchain>`, prints a compare link, and warns - it does not fail.
+
+Before the metrics mean anything on a big machine, run it locally:
+
+```powershell
+# e.g. on a 32-core desktop
+powershell -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 3 -Repeats 3
+```
 
 ## Scenarios
 
