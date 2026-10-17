@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- `scripts/check_repo_rules.py --fix` no longer strips the UTF-8 BOM while normalising line endings. The repair branch decoded with `utf-8-sig` (which eats the BOM) and wrote a BOM back only for files that did not already have one, so a file that had a BOM *and* mixed line endings came out BOM-less: `--fix` was not idempotent, its own output failed the check it had just run (a second run would put the BOM back), and a commit made in between landed a source file MSVC parses in the system code page - the reason R1 exists. The BOM is now written unconditionally, so one run repairs and the second is a no-op.
 - Release notes use a collapsible `<details>` block for the Chinese section, not a `#简体中文` jump link: GitHub renders release bodies without heading ids, so the link had no target. Verified against the rendered HTML (headings have no `id`; `<details>` passes the sanitiser).
 - `AGENTS.md` documents the release procedure: the five places a version lives, the annotated tag, and the bilingual GitHub Release body (English, then `## 简体中文`, title `english · 中文`). All five existing releases were brought up to that shape, and two older bodies were repaired (v0.3.0 carried cp1252 corruption, v0.1.0 carried a leaked link-reference block).
 ## [v0.3.1] - 2026-10-17

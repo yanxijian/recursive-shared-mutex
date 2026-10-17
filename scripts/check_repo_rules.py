@@ -115,9 +115,15 @@ def check_encoding(paths: list[Path], rep: Report, do_fix: bool) -> None:
             continue
 
         if do_fix:
+            # utf-8-sig strips the BOM while decoding, so it has to be written back
+            # unconditionally. A file that already had a BOM and only needed its
+            # line endings normalised must not come out BOM-less: that makes --fix
+            # non-idempotent (its own output fails the check it just ran, and only
+            # a second run puts the BOM back), and a commit made in between lands a
+            # source file MSVC parses in the system code page - the reason R1 exists.
             text = raw.decode("utf-8-sig", errors="replace")
             body = text.replace("\r\n", "\n").replace("\n", "\r\n")
-            path.write_bytes((BOM if not has_bom else b"") + body.encode("utf-8"))
+            path.write_bytes(BOM + body.encode("utf-8"))
             details = []
             if not has_bom:
                 details.append("added BOM")
