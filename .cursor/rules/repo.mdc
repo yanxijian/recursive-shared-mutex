@@ -1,40 +1,23 @@
 ---
-description: Repository rules for recursive-shared-mutex - see AGENTS.md at the root, which is the single source of truth for every agent.
+description: Rules for recursive-shared-mutex - the full rule set is AGENTS.md at the repository root.
 globs: "**/*"
 alwaysApply: true
 ---
 
-# recursive-shared-mutex - read AGENTS.md first
+# recursive-shared-mutex
 
-[AGENTS.md](mdc:AGENTS.md) holds the full rule set and the reasoning. This file
-only exists because Cursor needs a `.mdc` entry point with `alwaysApply`.
+[AGENTS.md](mdc:AGENTS.md) is the rule set. Cursor needs an always-on `.mdc`
+entry point, so the rules a change can break silently are repeated here; the
+reasoning is in AGENTS.md.
 
-## Enforced by `scripts/check_repo_rules.py` (fails CI)
-
-- **C/C++ sources: UTF-8 with BOM + CRLF.** `clang-format` writes CRLF
-  (`LineEnding: CRLF`) but never a BOM, and many tools strip it silently.
-  Repair with `python3 scripts/check_repo_rules.py --fix`.
-- **120 columns**, tab-indented; `.clang-format` is the authority. Do not wrap
-  early and do not reflow unrelated files.
-- **No `#pragma comment(lib|linker, ...)`** - link Windows libraries with
-  `target_link_libraries(the_target PRIVATE dwmapi)` in CMake.
-- **Headers:** `#pragma once` as the first significant line, no `using namespace`
-  at namespace scope.
-- **Version:** `project(VERSION x.y.z)` and `RSM_VERSION_MAJOR/MINOR/PATCH` must
-  match.
-- **`CHANGELOG.md`** keeps an `## [Unreleased]` section.
-
-## Correctness rules that need judgement
-
-- The underlying `std::shared_mutex` is **never re-entered by the same thread**
-  (`[thread.sharedmutex]`). Recursion is intercepted in `owner_` /
-  `exclusive_count_` / `under_exclusive_` before the backend is touched.
-- `try_lock` / `try_lock_shared` / `unlock` / `unlock_shared` are `Lockable` /
-  `SharedLockable` members: they must not throw on the "could not acquire" path.
-  Slot-table exhaustion throws from `lock_shared()` and returns `false` from
-  `try_lock_shared()` - that asymmetry is deliberate.
-- No pointer into the per-thread slot table (`thread_local`) may outlive the
-  operation that fetched it, be cached in a member, or cross a thread.
-- Parameter passing: scalars by value, large read-only by `const&`, sinks by
-  value + `std::move`, `string_view` never stored. Review priority:
-  correctness > lifetime > threading > style.
+- C/C++ sources: **UTF-8 with BOM + CRLF**. `clang-format` writes CRLF but never
+  a BOM. Repair with `python3 scripts/check_repo_rules.py --fix`.
+- **120 columns**, tab-indented; `.clang-format` is the authority.
+- Windows libraries through `target_link_libraries`, never `#pragma comment(lib)`.
+- Headers: `#pragma once` first, no `using namespace` at namespace scope.
+- `project(VERSION)` == `RSM_VERSION_MAJOR/MINOR/PATCH`; `CHANGELOG.md` keeps an
+  `## [Unreleased]` section.
+- The underlying `std::shared_mutex` must never be re-entered by the same thread
+  (`[thread.sharedmutex]`); `try_*` members must not throw on the acquire path.
+- Nothing may hold a pointer into the per-thread slot table across operations or
+  across threads.
