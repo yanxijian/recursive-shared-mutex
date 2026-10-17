@@ -83,3 +83,10 @@ endif()
 if(RSM_BUILD_EXAMPLES)
 	add_subdirectory(examples)
 endif()
+
+# Benchmark driver. Off by default; CI and benchmarks/run_bench.ps1 build it
+# through this target so nothing has to hard-code a compiler path.
+option(RSM_BUILD_BENCHMARKS "Build the benchmark driver (bench_rsm)" OFF)
+if(RSM_BUILD_BENCHMARKS)
+	add_subdirectory(benchmarks)
+endif()
