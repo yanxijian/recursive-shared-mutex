@@ -79,15 +79,16 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
 > scenario. Read them as order of magnitude; [benchmarks/README.md](benchmarks/README.md)
 > explains why, and `benchmarks/results/ci-*.md` is the fixed-hardware drift record.
 
-- **MSVC / clang with the MSVC STL**: the wrapper costs about 1 ns per lock
-  pair (5.8 ns vs 3.3 ns for the raw backend); exclusive-only overhead is
+- **MSVC / clang with the MSVC STL**: the wrapper costs about 1.3 ns per lock
+  pair (4.6 ns vs 3.3 ns for the raw backend), and that cost no longer depends on how
+  many shared locks the thread holds elsewhere; exclusive-only overhead is
   **0.9×–1.2×**, and read-heavy workloads gain roughly 6×–14× total throughput.
 - **MinGW-GCC with `RSM_BACKEND_STD`** (what this library used to pick by default): 0.07×–0.2×, i.e. a 5×–15× **regression** on the
   exclusive path. The cause is the toolchain, not the design: libstdc++'s
   `std::shared_mutex` over winpthreads is ~11× slower than a native `SRWLOCK`,
   every `thread_local` access goes through emutls, and `try_lock()` on that
   backend is not even mutually exclusive. That is why MinGW now defaults to the native backend.
-- **MinGW-GCC + `RSM_BACKEND_SRWLOCK`**: 62.8 → 23.4 ns per exclusive
+- **MinGW-GCC with the native backend (the default)**: 62.8 → 23.4 ns per exclusive
   lock/unlock pair (2.7×), 76.4 → 35.1 ns for the shared pair, and the
   exclusive-only ratio goes from 0.067× to **1.52×** — faster than
   `std::recursive_mutex`. The backend contract test passes again.
@@ -100,16 +101,19 @@ g++ -DRSM_BACKEND_STD ...          # opt back into std::shared_mutex (unsound th
 ```
 
 On MinGW-w64 the header selects `RSM_BACKEND_SRWLOCK` on its own, because the
-alternative is not merely slow but wrong. The switch swaps `std::shared_mutex`
-for an 8-byte SRWLOCK wrapper
-(`rsm::detail::SrwLockBackend`, exposed as `RecursiveSharedMutex::backend_type`).
-and is a no-op on MSVC (whose `std::shared_mutex` already *is* SRWLOCK). It requires
-Windows Vista+, and keeps the default behaviour unchanged elsewhere. SRWLOCK is
-non-recursive in exclusive mode, which is fine here: the class intercepts every
-recursion before touching the backend.
+alternative is not merely slow but wrong. The switch swaps `std::shared_mutex` for
+an 8-byte SRWLOCK wrapper (`rsm::detail::SrwLockBackend`, exposed as
+`RecursiveSharedMutex::backend_type`). It is a no-op in effect on MSVC, whose
+`std::shared_mutex` already *is* SRWLOCK, requires Windows Vista+, and changes
+nothing on other platforms. SRWLOCK is non-recursive in exclusive mode, which is
+fine here: the class intercepts every recursion before touching the backend.
+
+Reproduce with [benchmarks/run_bench.ps1](benchmarks/run_bench.ps1), which reports
+medians of `-Repeats` runs (see [benchmarks/README.md](benchmarks/README.md) for why
+the spread matters):
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/run_bench.ps1 -Toolchain both -Seconds 3
+powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/run_bench.ps1 -Toolchain both -Seconds 3 -Repeats 3
 ```
 
 ## Requirements
@@ -138,7 +142,7 @@ include(FetchContent)
 FetchContent_Declare(
   recursive_shared_mutex
   GIT_REPOSITORY https://github.com/yanxijian/recursive-shared-mutex.git
-  GIT_TAG v0.2.1
+  GIT_TAG v0.3.0
 )
 FetchContent_MakeAvailable(recursive_shared_mutex)
 target_link_libraries(your_target PRIVATE rsm::recursive_shared_mutex)
@@ -183,8 +187,8 @@ See [docs/migration.md](docs/migration.md) for the migration guide and test matr
 
 ## Writer-starvation observability (R2)
 
-MinGW (and glibc's reader-preferring `pthread_rwlock`) can starve writers under
-read pressure. An optional instrumented guard measures write wait and hold
+Any backend without writer preference - glibc's `pthread_rwlock`, Win32 SRWLOCK -
+can starve writers under read pressure. An optional instrumented guard measures write wait and hold
 times without touching the core component:
 
 ```cpp
@@ -220,9 +224,12 @@ Zero cost when no recorder is installed; see
 include/recursive_shared_mutex/   # public headers
 tests/                            # Catch2 tests + framework-free regression tests
 examples/                         # usage demos (incl. the cross-module hazard repro)
-docs/                             # design, migration & platform notes
+benchmarks/                       # driver, CI automation, checked-in results
+docs/                             # design, migration, platform notes, roadmap
+scripts/check_repo_rules.py       # the rules AGENTS.md promises CI enforces
 cmake/                            # package config
-.github/                          # CI, issue/PR templates
+.github/                          # ci.yml, platform-matrix.yml, benchmarks.yml
+AGENTS.md                         # repository rules, one file for every agent
 ```
 
 ## Contributing
