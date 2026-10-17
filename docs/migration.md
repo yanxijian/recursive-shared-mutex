@@ -35,7 +35,7 @@ Shared depth is not stored in `thread_local unordered_map` (allocator path under
 - Writer starvation: `std::shared_mutex` has no writer preference. Under continuous readers, writers may starve (see benchmarks S1/S5); add upstream throttling/yielding if writes have latency requirements.
 - Per-thread cap: at most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread (≈4 KB TLS per thread). The next `lock_shared` throws `resource_unavailable_try_again`; `try_lock_shared` returns `false` instead, so `std::shared_lock(mtx, std::try_to_lock)` stays usable. Slots recycle on unlock, so sequentially touching any number of mutexes is fine.
 - No `std::condition_variable_any` once recursion depth > 1: `wait()` unlocks only one level, the mutex stays held and the waiting thread never wakes.
-- The backend must honour mutual exclusion (`try_lock` grants at most one owner, no reader inside while a writer is). MinGW-w64 GCC 13.2 over winpthreads does not; `-DRSM_BACKEND_SRWLOCK` replaces it with a native SRWLOCK and fixes both the correctness defect and the 5×–15× exclusive-path regression (see `docs/platform-notes.md` §6). Run `tests/backend_contract.cpp` on the target toolchain before migrating.
+- The backend must honour mutual exclusion (`try_lock` grants at most one owner, no reader inside while a writer is) and must refuse `try_lock()` while the calling thread already holds the mutex shared. MinGW-w64 GCC 13.2 over winpthreads honours neither; it is no longer the default there, and `-DRSM_BACKEND_STD` is how you ask for it. Native SRWLOCK fixes both the correctness defect and the 5×–15× exclusive-path regression (see `docs/platform-notes.md` §6). Run `tests/backend_contract.cpp` on the target toolchain before migrating.
 
 ## Stranded slots and the rejected escape valve
 
@@ -57,12 +57,15 @@ Covered by `tests/test_recursive_shared_mutex.cpp`:
 - E2 `try_lock_shared` contention fails cleanly, mutex stays usable
 - E3 slot recycling across many mutexes + `kSharedSlotCount` cap enforcement
 - E5 `try_lock_shared` injected acquire failure: symmetric to E1
+- T12 `[perf]` holding 64 shared locks does not slow the exclusive path (and an upgrade attempt still throws)
 
 Framework-free regression tests (no Catch2, one-line compile, used by the cross-platform CI matrix):
 
-- `tests/backend_contract.cpp` — does *this toolchain's* `std::shared_mutex` honour mutual exclusion? Runs an 8-thread `try_lock` storm with a critical-section counter, plus reader-vs-writer. Fails on MinGW-w64 GCC 13.2 (~1 violation per 1200 successful acquisitions); passes on MSVC / clang / clang-cl / 32-bit.
+- `tests/backend_contract.cpp` — does *this toolchain's* `std::shared_mutex` honour mutual exclusion? Runs an 8-thread `try_lock` storm with a critical-section counter, plus reader-vs-writer. Fails on MinGW over winpthreads, i.e. `RSM_BACKEND_STD` (~1 violation per 1200
+  successful acquisitions); passes on MSVC / clang / clang-cl / 32-bit and on MinGW's
+  default native backend.
 - `tests/mutual_exclusion.cpp` — does *the library* keep two writers out of the critical section, and no reader with a writer? The existing suite asserts reentrancy bookkeeping and error paths, but not this.
 
 Failure injection uses the `RSM_ENABLE_TEST_HOOKS`-only `fail_next_shared_acquire` hook defined in the header; tests must not replace the global allocator.
 
-Optional stress: `tests/stress_concurrent.cpp` (manual build).
+Optional stress: `tests/stress_concurrent.cpp`, built with `-DRSM_BUILD_STRESS=ON` and registered as the `stress_concurrent` test.

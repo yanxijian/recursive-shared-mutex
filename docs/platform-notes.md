@@ -20,6 +20,11 @@ single-shot numbers on this host swing by 1.1Ã—â€“3.2Ã—.
 | `sizeof(rsm::RecursiveSharedMutex)` | 24 | 24 | 24 |
 | `sizeof(std::recursive_mutex)` | 8 | 80 | 80 |
 
+Measured on v0.2.x. Since v0.3.0 the MinGW column describes the **`RSM_BACKEND_STD`**
+configuration (MinGW now defaults to the native backend; its uncontended cost is in
+section 6), and the MSVC exclusive row is **4.6 ns** after the exclusive fast path
+stopped scanning the slot table (shared: 6.8 ns).
+
 Reading: the wrapper costs â‰ˆ1.7Ã— its backend on every toolchain, but the
 *absolute* cost is dominated by the backend (11Ã— slower on MinGW) and by TLS
 access (emutls on MinGW is an order of magnitude more expensive than the
@@ -40,6 +45,7 @@ concurrency.
 | clang 22.1 (MSVC STL) | 8,068,846 ops/s | 11,468,567 ops/s | **1.42Ã—** |
 | MinGW-GCC 13.2 | 4,986,027 ops/s | 335,929 ops/s | **0.067Ã—** |
 
+The MinGW row is `RSM_BACKEND_STD`; the native backend reaches 1.52× in section 6.
 The checked-in benchmark tables report 0.93Ã— (MSVC) and 0.10Ã— (MinGW); both are
 in the right ballpark â€” the MinGW cell is if anything worse in this harness. The
 MinGW run also threw spurious `operation_not_permitted` twice during the five
@@ -48,7 +54,8 @@ rounds, which is the symptom described in section 3.
 ## 3. The backend contract (why MinGW is not just slow)
 
 `std::shared_mutex` is only required to be as good as its implementation. On
-MinGW-w64 GCC 13.2 / clang with libstdc++ over **winpthreads**, `try_lock()` is
+MinGW-w64 GCC 13.2 / clang with libstdc++ over **winpthreads** - that is
+`RSM_BACKEND_STD`, since the default on MinGW is the native backend - `try_lock()` is
 not mutually exclusive: under a `try_lock`/`unlock` storm two threads can both
 hold the write lock. An 8-thread storm with a ~200 ns critical section:
 
@@ -83,8 +90,9 @@ window is the `unlock`/`try_lock` interleaving.
 | MSVC x86 (32-bit) Release | pass | pass |
 | clang-cl x64 Release / Debug | pass | pass |
 | clang x64 Release (MSVC STL) | pass | pass |
-| MinGW-GCC Release / Debug | **fail** | pass (blocking paths dominate) |
-| clang + libstdc++/winpthreads | **fail** | pass |
+| MinGW-GCC default (native SRWLOCK) | pass | pass |
+| MinGW-GCC `RSM_BACKEND_STD` | **fail** (raw backend) | pass (blocking paths dominate) |
+| clang + libstdc++/winpthreads (same backend as `RSM_BACKEND_STD`) | **fail** | pass |
 
 32-bit detail: `sizeof(rsm::RecursiveSharedMutex)` drops to 16, `lock+unlock` is
 7.9 ns and `std::recursive_mutex` 9.7 ns â€” on that configuration the wrapper is
@@ -129,7 +137,7 @@ slow. `-DRSM_BACKEND_STD` restores `std::shared_mutex`. Measured on MinGW-w64 GC
 | 2× nested shared | 108.1 ns | **66.1 ns** |
 | S7 shape vs `std::recursive_mutex` | 0.068× | **1.523×** |
 | `backend_contract` | **fails** (245 violations) | **passes** (0) |
-| full suite | 23/24 | **24/24** |
+| full suite | 24/25 | **25/25** |
 
 On MSVC the switch is a no-op in effect (`std::shared_mutex` already is SRWLOCK):
 5.8 vs 5.7 ns, contract passes either way.
@@ -149,7 +157,7 @@ say something about where the cost actually is.
 ### TLS-only state (the instance holds nothing but the backend)
 
 Move `owner_` / `exclusive_count_` / `under_exclusive_` into the slot table, so
-the object is 8 bytes and no thread id is ever read. Same 24 tests, all passing
+the object is 8 bytes and no thread id is ever read. Same 25 tests, all passing
 on MSVC, clang and MinGW + SRWLOCK:
 
 | | current (hybrid) | TLS-only |
