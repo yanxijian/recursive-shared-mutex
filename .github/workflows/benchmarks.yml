@@ -16,8 +16,15 @@
 #  * "Update" opens a PR rather than pushing to main: a weekly bot commit with
 #    +-2% noise is worse than no bot at all.
 #  * PRs opened with GITHUB_TOKEN do not trigger other workflows (GitHub
-#    limitation), so the benchmark PR arrives without checks. That is fine - it
-#    only touches benchmarks/results/*.md.
+#    limitation), so a benchmark PR arrives without checks. That is fine - it
+#    only touches benchmarks/results/ci-*.md.
+#
+# HARD RULE - this workflow never merges a pull request. Not one, not even the
+# ones it opens itself, and certainly not a human's. The only automatic merge is
+# `POST /repos/{repo}/merges` for a `bench/refresh-<toolchain>` branch that this
+# same job created seconds earlier, and only after every changed path matched
+# `benchmarks/results/ci-*.md`. Human PRs are only ever *checked* (the gate job),
+# never merged. Keep it that way: do not add `gh pr merge` here.
 
 name: benchmarks
 
@@ -148,7 +155,12 @@ jobs:
         # PR-event run ("workflow file issue") and leaves red Xs behind. So in
         # auto-merge mode the commit goes straight onto main through the API. The
         # commit itself is the audit trail, and `git revert` is the undo.
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'auto-merge'
+        # Belt and braces: auto-merge is a schedule/dispatch-only path. Even if a
+        # pull_request trigger is added later, this can never fire on a PR.
+        if: |
+          github.event_name != 'pull_request' &&
+          (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) &&
+          inputs.update_mode == 'auto-merge'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -207,6 +219,10 @@ jobs:
   gate:
     name: gate / no regression
     if: github.event_name == 'pull_request'
+    # Read-only on purpose: this job only measures and compares. It cannot merge,
+    # push or comment on anything.
+    permissions:
+      contents: read
     runs-on: windows-2022
     timeout-minutes: 25
     steps:
