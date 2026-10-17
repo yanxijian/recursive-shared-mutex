@@ -207,6 +207,14 @@ namespace rsm
 
 	class RecursiveSharedMutex
 	{
+		// The owner token is read and written on every lock/unlock. Where the platform
+		// implements std::atomic<std::thread::id> with a lock, this mutex would take
+		// that hidden lock inside its own hot path - slow, and a nasty thing to debug.
+		// Every supported toolchain is lock-free here (MSVC x64/x86: 4-byte id, MinGW:
+		// 8-byte id); fail loudly rather than silently degrade.
+		static_assert(std::atomic<std::thread::id>::is_always_lock_free,
+		              "rsm::RecursiveSharedMutex requires a lock-free atomic<std::thread::id>");
+
 	public:
 		// The underlying backend: std::shared_mutex, or detail::SrwLockBackend
 		// when RSM_BACKEND_SRWLOCK is defined. Exposed so tests (and callers
@@ -220,6 +228,16 @@ namespace rsm
 		// RSM_SHARED_SLOT_COUNT (see the top of this header).
 		// On exhaustion lock_shared() throws resource_unavailable_try_again,
 		// while try_lock_shared() returns false (try_* must not throw).
+		//
+		// COST: the shared path looks the mutex up in that table linearly, so
+		// lock_shared()/unlock_shared() get slower as a thread holds more distinct
+		// shared locks. Measured (MSVC 19.51, x64, uncontended, per lock+unlock):
+		//     held:      1      8     32     64    128    250
+		//     shared:  6.9    9.8   23.8   42.6   80.9  152.9 ns
+		// The exclusive path is constant (5.7 ns at every one of those counts) - it
+		// never scans unless a try_lock was refused. Holding a handful of shared
+		// locks costs nothing worth measuring; holding a hundred is a design smell
+		// (shard the locks, or take one at a time) and this table is the reason.
 		static constexpr std::size_t kSharedSlotCount = RSM_SHARED_SLOT_COUNT;
 
 #ifdef RSM_ENABLE_TEST_HOOKS
@@ -243,9 +261,15 @@ namespace rsm
 			assert(exclusive_count_ == 0);
 			assert(under_exclusive_ == 0);
 #endif
-			// Defensive: per the "never destroy while locked" contract no
-			// active slot should remain; compact if one does.
+			// Never destroy a mutex this thread still holds shared: the backend lock
+			// is never released, and the next mutex constructed at this address
+			// inherits a held lock. Catch it here; a shared lock held by ANOTHER
+			// thread leaves no trace on this instance (it lives in that thread's
+			// table), so that case cannot be diagnosed from here.
 			SharedDepthSlot* slot = findActiveSlot();
+#if !defined(NDEBUG) && !defined(RSM_NO_DEBUG_ASSERT)
+			assert(slot == nullptr);
+#endif
 			if (slot != nullptr)
 			{
 				SharedSlotTable& table = slotTable();
@@ -265,6 +289,31 @@ namespace rsm
 			if (owner_.load(std::memory_order_relaxed) == self)
 			{
 				++exclusive_count_;
+				return;
+			}
+			// The upgrade guard ("this thread must not already hold a shared lock on
+			// this mutex") needs a lookup in the per-thread slot table, which is
+			// linear in the number of shared locks this thread holds. Keep it off the
+			// common path twice over:
+			//   - no shared locks at all -> nothing to look for, take the backend
+			//     directly, exactly the cost of before;
+			//   - some shared lock elsewhere -> try the backend first. If it grants
+			//     the lock, this thread cannot be holding a shared lock on THIS mutex,
+			//     because SRWLOCK and pthread_rwlock both refuse that. Only a refused
+			//     try_lock needs the scan, to tell "upgrade attempt" (throw) from
+			//     "someone else holds it" (block).
+			if (slotTable().used == 0)
+			{
+				mtx_.lock();
+				owner_.store(self, std::memory_order_relaxed);
+				exclusive_count_ = 1;
+				return;
+			}
+			if (mtx_.try_lock())
+			{
+				assert(sharedDepthValue() == 0);
+				owner_.store(self, std::memory_order_relaxed);
+				exclusive_count_ = 1;
 				return;
 			}
 			if (sharedDepthValue() > 0)
