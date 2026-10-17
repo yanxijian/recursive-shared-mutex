@@ -1,0 +1,22 @@
+#!/bin/sh
+# Pre-commit hook: repository rules from AGENTS.md that a program can check.
+#
+# Install once per clone:
+#   git config core.hooksPath .githooks
+#
+# This is a convenience, not the guarantee - the same checker runs in CI
+# (.github/workflows/ci.yml, job "repo-rules"), which is what makes the rules
+# effective for every agent regardless of whether anyone installed hooks.
+
+set -e
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+for candidate in python3 python py; do
+	if command -v "$candidate" >/dev/null 2>&1; then
+		exec "$candidate" scripts/check_repo_rules.py --staged
+	fi
+done
+
+echo "pre-commit: no python interpreter found; skipping repository rules" >&2
+exit 0
