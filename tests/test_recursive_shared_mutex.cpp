@@ -201,8 +201,19 @@ TEST_CASE("try paths against foreign holders", "[try][P1][P2]")
 	holder.join();
 
 	mtx.lock_shared();
-	std::thread exclusive_probe([&]() { REQUIRE_FALSE(mtx.try_lock()); });
+	// Assertions must run on the main thread: a failing REQUIRE inside another
+	// thread escapes as Catch::TestFailureException and terminates the process
+	// instead of failing the test case. Record the observation, assert here.
+	bool probeAcquired = true;
+	std::thread exclusive_probe([&]() {
+		probeAcquired = mtx.try_lock();
+		if (probeAcquired)
+		{
+			mtx.unlock();
+		}
+	});
 	exclusive_probe.join();
+	REQUIRE_FALSE(probeAcquired);
 	REQUIRE(mtx.try_lock_shared());
 	mtx.unlock_shared();
 	mtx.unlock_shared();
