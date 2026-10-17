@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- On MinGW the native SRWLOCK backend is now selected automatically: libstdc++'s `std::shared_mutex` there is built on winpthreads, which lets two threads hold the exclusive lock and is ~11x slower. `RSM_BACKEND_STD` restores the old behaviour (and the defect) for anyone who needs it; `RSM_BACKEND_AUTO_SELECTED` reports that the choice was automatic.
 - Column limit raised from 120 to 140 in `.clang-format`, AGENTS.md R2 and the rule checker. Sources reformatted accordingly; the widest line in the tree is now exactly 140.
 - `try_lock_shared()` returns `false` instead of throwing when the per-thread slot table is full. `SharedLockable` requires `try_lock_shared` not to throw, and the previous behaviour made `std::shared_lock(mtx, std::try_to_lock)` non-conforming. `lock_shared()` still throws `resource_unavailable_try_again` on exhaustion.
 - `RSM_BUILD_TESTS` / `RSM_BUILD_EXAMPLES` default to `ON` only when the project is top-level, so `add_subdirectory()` / `FetchContent_MakeAvailable()` consumers no longer download Catch2 and build two test binaries by default.

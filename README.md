@@ -57,6 +57,8 @@ wasteful when a mutex is embedded in a per-object struct. Reproduce with
 |---|---|---|
 | `RSM_SHARED_SLOT_COUNT` | `256` | Per-thread cap on tracked mutexes; one slot is 16 B of TLS, so the default costs 4 KB per thread. Lower it for thread-heavy targets. |
 | `RSM_VERSION_MAJOR/MINOR/PATCH`, `RSM_VERSION` | `0/2/1` | Header version, for consumers that only see the file (FetchContent). Kept in sync with `project(VERSION)`. |
+| `RSM_BACKEND_SRWLOCK` | on for MinGW, off elsewhere | Use the native Win32 SRWLOCK wrapper as the backend. Auto-selected on `__MINGW32__` because the alternative is unsound there. |
+| `RSM_BACKEND_STD` | off | Force `std::shared_mutex` even on MinGW. Only useful to reproduce the winpthreads defect. |
 | `RSM_NO_DEBUG_ASSERT` | off | Disables the debug-only "destroyed while locked" assertion. |
 | `RSM_NO_THREAD_MIGRATION_NOTICE` | off | Silences the C++20 coroutine-mode notice. |
 
@@ -69,31 +71,34 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
 |---|---:|---:|---:|
 | MSVC (SRWLOCK) | 8.17 M ops/s | 9.53 M ops/s | **1.17×** |
 | clang-cl / clang with MSVC STL | 8.07 M ops/s | 11.47 M ops/s | **1.42×** |
-| MinGW-GCC 13.2 (libstdc++/winpthreads) | 4.99 M ops/s | 0.34 M ops/s | **0.067×** |
-| MinGW-GCC 13.2 **+ `RSM_BACKEND_SRWLOCK`** | 4.99 M ops/s | 7.54 M ops/s | **1.52×** |
+| MinGW-GCC 13.2 + `RSM_BACKEND_STD` (libstdc++/winpthreads) | 4.99 M ops/s | 0.34 M ops/s | **0.067×** |
+| MinGW-GCC 13.2 (default: native SRWLOCK) | 4.99 M ops/s | 7.54 M ops/s | **1.52×** |
 
 - **MSVC / clang with the MSVC STL**: the wrapper costs about 1 ns per lock
   pair (5.8 ns vs 3.3 ns for the raw backend); exclusive-only overhead is
   **0.9×–1.2×**, and read-heavy workloads gain roughly 6×–14× total throughput.
-- **MinGW-GCC, default backend**: 0.07×–0.2×, i.e. a 5×–15× **regression** on the
+- **MinGW-GCC with `RSM_BACKEND_STD`** (what this library used to pick by default): 0.07×–0.2×, i.e. a 5×–15× **regression** on the
   exclusive path. The cause is the toolchain, not the design: libstdc++'s
   `std::shared_mutex` over winpthreads is ~11× slower than a native `SRWLOCK`,
   every `thread_local` access goes through emutls, and `try_lock()` on that
-  backend is not even mutually exclusive. **Use the switch below.**
+  backend is not even mutually exclusive. That is why MinGW now defaults to the native backend.
 - **MinGW-GCC + `RSM_BACKEND_SRWLOCK`**: 62.8 → 23.4 ns per exclusive
   lock/unlock pair (2.7×), 76.4 → 35.1 ns for the shared pair, and the
   exclusive-only ratio goes from 0.067× to **1.52×** — faster than
   `std::recursive_mutex`. The backend contract test passes again.
 
-### MinGW-w64: enable the native backend
+### MinGW-w64: the native backend is the default
 
 ```bash
-g++ -DRSM_BACKEND_SRWLOCK ...      # or add it to CMake: -DCMAKE_CXX_FLAGS=-DRSM_BACKEND_SRWLOCK
+g++ ...                            # nothing to add: MinGW gets the native backend
+g++ -DRSM_BACKEND_STD ...          # opt back into std::shared_mutex (unsound there)
 ```
 
-`RSM_BACKEND_SRWLOCK` swaps `std::shared_mutex` for a 8-byte SRWLOCK wrapper
+On MinGW-w64 the header selects `RSM_BACKEND_SRWLOCK` on its own, because the
+alternative is not merely slow but wrong. The switch swaps `std::shared_mutex`
+for an 8-byte SRWLOCK wrapper
 (`rsm::detail::SrwLockBackend`, exposed as `RecursiveSharedMutex::backend_type`).
-It is a no-op on MSVC (whose `std::shared_mutex` already *is* SRWLOCK), requires
+and is a no-op on MSVC (whose `std::shared_mutex` already *is* SRWLOCK). It requires
 Windows Vista+, and keeps the default behaviour unchanged elsewhere. SRWLOCK is
 non-recursive in exclusive mode, which is fine here: the class intercepts every
 recursion before touching the backend.
@@ -202,7 +207,7 @@ Zero cost when no recorder is installed; see
 - No lock upgrade (shared → exclusive): `lock()` throws `resource_deadlock_would_occur` by design; audit read-then-write call chains before moving readers to `shared_lock`.
 - `std::shared_mutex` underneath has no writer preference: writers may starve under continuous readers (see benchmarks S1/S5).
 - `std::condition_variable_any` is unsafe once recursion depth > 1: `wait()` releases only one level, so the mutex stays held and the waiter never wakes.
-- The backend must honour mutual exclusion. MinGW-w64 GCC 13.2 (libstdc++/winpthreads) does not: `try_lock()` can grant two owners, which surfaces as spurious `operation_not_permitted` from `unlock()` inside this library. Define `RSM_BACKEND_SRWLOCK` on that toolchain (see above); run [tests/backend_contract.cpp](tests/backend_contract.cpp) on any new one. Details in [docs/platform-notes.md](docs/platform-notes.md).
+- The backend must honour mutual exclusion. MinGW-w64 GCC 13.2 (libstdc++/winpthreads) does not: `try_lock()` can grant two owners, which surfaces as spurious `operation_not_permitted` from `unlock()` inside this library. That is why MinGW defaults to the native backend and `RSM_BACKEND_STD` is opt-in; run [tests/backend_contract.cpp](tests/backend_contract.cpp) on any new toolchain. Details in [docs/platform-notes.md](docs/platform-notes.md).
 
 ## Project layout
 

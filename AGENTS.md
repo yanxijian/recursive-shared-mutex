@@ -142,11 +142,12 @@ the automation overwrite the desktop files.
 
 - **Push policy:** work on a branch, open a PR, let CI run. Never force-push
   `main`.
-- **Two known-red CI cells:** `contract-mingw` and `suite-windows-mingw` fail by
-  design on the default MinGW backend (`std::shared_mutex` built on winpthreads
-  grants two exclusive owners). They carry `continue-on-error: true`. The fixed
-  cells are the `+ RSM_BACKEND_SRWLOCK` ones - do not "fix" the red by deleting
-  the cells.
+- **`RSM_BACKEND_STD` is the wrong default on MinGW.** libstdc++'s
+  `std::shared_mutex` there is built on winpthreads, which grants two exclusive
+  owners, so the header auto-selects the native SRWLOCK backend on `__MINGW32__`.
+  Two CI cells build with `-DRSM_BACKEND_STD` on purpose and stay red; they prove
+  the toolchain defect still exists. Do not "fix" that red by deleting the cells -
+  if they ever pass, the toolchain fixed itself and the cells can go.
 - **Benchmark automation** opens no pull requests and commits only
   `benchmarks/results/ci-*.md`. Do not add `gh pr merge` to any workflow.
 - **Catch2:** assertions must run on the main thread. A failing `REQUIRE` inside
