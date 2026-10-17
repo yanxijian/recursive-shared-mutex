@@ -7,9 +7,9 @@ project(recursive_shared_mutex
 	LANGUAGES CXX
 )
 
-# Single source of truth for the version: bump it here and in CHANGELOG.md
-# together. (Historically this stayed at 0.1.0 while v0.2.x was released, which
-# made `find_package(recursive_shared_mutex 0.2 REQUIRED)` fail.)
+# Keep VERSION in sync with RSM_VERSION_* in the header: the header is what
+# FetchContent consumers see, this is what find_package() sees, and they used to
+# disagree (0.1.0 here while v0.2.x was released).
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 	set(RSM_IS_TOP_LEVEL ON)
 else()
