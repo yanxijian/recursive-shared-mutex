@@ -56,8 +56,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Install clang-format (pinned)
+        # Pinned through PyPI, not apt: the distro package moves with the image and
+        # silently reflows the tree when it does. Bump this on purpose, together
+        # with a reformatting commit.
+        run: |
+          python3 -m venv "$RUNNER_TEMP/fmt"
+          "$RUNNER_TEMP/fmt/bin/pip" install --quiet --disable-pip-version-check clang-format==22.1.8
+          echo "$RUNNER_TEMP/fmt/bin" >> "$GITHUB_PATH"
+
+      - name: Report the version
+        run: clang-format --version
 
       - name: Check formatting
         run: >

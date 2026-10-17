@@ -93,7 +93,11 @@ function Invoke-Config($exe, $impl, $sc) {
 	else {
 		($sorted[$sorted.Count / 2 - 1] + $sorted[$sorted.Count / 2]) / 2.0
 	}
-	return [pscustomobject]@{ Raw = $last; MedianOpsPerSecond = $median }
+	$spread = if ($median -gt 0 -and $sorted.Count -gt 1) {
+		($sorted[$sorted.Count - 1] - $sorted[0]) / $median * 100.0
+	}
+	else { 0.0 }
+	return [pscustomobject]@{ Raw = $last; MedianOpsPerSecond = $median; SpreadPct = $spread }
 }
 
 function Get-CompilerLabel([string]$kind) {
@@ -146,6 +150,11 @@ function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [st
 	}
 	$md.Add("- Host hw_concurrency: $([Environment]::ProcessorCount)")
 	if (-not [string]::IsNullOrWhiteSpace($backend)) { $md.Add("- Backend: $backend") }
+	if ($Repeats -gt 1) {
+		$worst = $rows | Sort-Object SpreadPct -Descending | Select-Object -First 1
+		$medianSpread = ($rows | Sort-Object SpreadPct | Select-Object -Index ([int][math]::Floor($rows.Count / 2))).SpreadPct
+		$md.Add("- Run-to-run spread over $Repeats run(s): median $([math]::Round($medianSpread))%, worst $($worst.Scenario.Split(' ')[0]) $([math]::Round($worst.SpreadPct))%")
+	}
 	$md.Add("- Dataset: 1,048,576 x uint32 (~4 MiB); nested reenter depth 3; read window 24 / write window 12")
 	$md.Add("")
 	$md.Add("> Absolute numbers are specific to the machine; the meaningful column is the speedup vs ``recursive_mutex`` measured in the same run.")
@@ -229,8 +238,8 @@ function Invoke-Toolchain([string]$kind) {
 		if (-not $Quiet) { Write-Host ">> [$kind] $($sc.Name)" }
 		$baselineRow = Invoke-Config $exe "recursive_mutex" $sc
 		$impl = Invoke-Config $exe $sc.ImplRsm $sc
-		$rows.Add([pscustomobject]@{ Scenario = $sc.Name; Impl = "recursive_mutex"; Raw = $baselineRow.Raw; MedianOpsPerSecond = $baselineRow.MedianOpsPerSecond })
-		$rows.Add([pscustomobject]@{ Scenario = $sc.Name; Impl = $sc.ImplRsm; Raw = $impl.Raw; MedianOpsPerSecond = $impl.MedianOpsPerSecond })
+		$rows.Add([pscustomobject]@{ Scenario = $sc.Name; Impl = "recursive_mutex"; Raw = $baselineRow.Raw; MedianOpsPerSecond = $baselineRow.MedianOpsPerSecond; SpreadPct = $baselineRow.SpreadPct })
+		$rows.Add([pscustomobject]@{ Scenario = $sc.Name; Impl = $sc.ImplRsm; Raw = $impl.Raw; MedianOpsPerSecond = $impl.MedianOpsPerSecond; SpreadPct = $impl.SpreadPct })
 	}
 
 	$backendText = if ($backendLine -match "^backend\|([^|]+)\|(\d+)$") {
