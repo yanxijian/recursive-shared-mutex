@@ -39,7 +39,7 @@ SKIP_PARTS = {
 }
 SKIP_PREFIXES = ("build-", "build_", "cmake-build")
 
-COLUMN_LIMIT = 120
+COLUMN_LIMIT = 140
 TAB_WIDTH = 4
 
 
