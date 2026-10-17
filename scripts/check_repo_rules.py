@@ -17,6 +17,7 @@ Exit code 0 = clean, 1 = violations. See AGENTS.md for the rule text.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import re
 import subprocess
 import sys
@@ -251,6 +252,71 @@ GITATTRIBUTES_REQUIRED = (
 
 # Extension-less text files worth checking too (the hook must stay LF or it will
 # not run; the formatter config is edited by hand).
+# ---------------------------------------------------------------------------
+# R8 - a translated document stays linked and stays honest
+#      Every document that has a Chinese version must link to it, the Chinese
+#      version must link back, and it records which revision of the English file
+#      it was translated from. That revision is a content hash, not a commit id,
+#      so it survives a rebase; a mismatch is reported as STALE rather than a
+#      failure, because translating is not a merge-blocking task.
+# ---------------------------------------------------------------------------
+TRANSLATED_DOCS = (
+    "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CODE_OF_CONDUCT.md",
+    "benchmarks/README.md",
+    "docs/migration.md",
+    "docs/platform-notes.md",
+    "docs/roadmap.md",
+)
+
+TRANSLATION_MARKER = "translated-from:"
+
+
+def _sha12(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+
+
+def check_translations(rep: Report) -> None:
+    for english in TRANSLATED_DOCS:
+        en_path = ROOT / english
+        zh_rel = english[:-3] + ".zh-CN.md"
+        zh_path = ROOT / zh_rel
+        if not en_path.exists():
+            rep.bad(english, "translation", "listed in TRANSLATED_DOCS but missing")
+            continue
+        if not zh_path.exists():
+            rep.bad(zh_rel, "translation", "missing - the translated set must stay complete")
+            continue
+
+        en_text = en_path.read_text(encoding="utf-8-sig")
+        zh_text = zh_path.read_text(encoding="utf-8-sig")
+        zh_leaf = zh_rel.split("/")[-1]
+
+        if zh_leaf not in en_text:
+            rep.bad(english, "translation", f"does not link to {zh_leaf}")
+        if english.split("/")[-1] not in zh_text:
+            rep.bad(zh_rel, "translation", f"does not link back to {english.split('/')[-1]}")
+        if TRANSLATION_MARKER not in zh_text:
+            rep.bad(zh_rel, "translation", "no `<!-- translated-from: ... sha256:... -->` marker")
+
+        recorded = None
+        for line in zh_text.split("\n"):
+            if TRANSLATION_MARKER in line:
+                for token in line.replace("-->", " ").split():
+                    if token.startswith("sha256:"):
+                        recorded = token[len("sha256:"):]
+        if recorded is None:
+            continue
+        current = _sha12(en_path)
+        if recorded != current:
+            print(
+                f"STALE  {zh_rel}: translated from {english} at sha256:{recorded}, "
+                f"but the English file is now sha256:{current} - re-read the change and update the marker"
+            )
+
+
 TEXT_NAMES = {"LICENSE", ".gitignore", ".gitattributes", ".editorconfig", ".clang-format", "pre-commit"}
 
 
@@ -371,6 +437,7 @@ def main() -> int:
     check_headers(paths, rep)
     check_line_endings(files, rep, args.fix)
     check_gitattributes(rep)
+    check_translations(rep)
     check_version(rep)
     check_changelog(rep)
 

@@ -1,5 +1,7 @@
 # Contributing
 
+**English** · [简体中文](CONTRIBUTING.zh-CN.md)
+
 Thanks for helping improve **recursive-shared-mutex**.
 
 ## Development setup
