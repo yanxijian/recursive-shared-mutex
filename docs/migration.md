@@ -68,7 +68,8 @@ Framework-free regression tests (no Catch2, one-line compile, used by the cross-
 - `tests/backend_contract.cpp` — does *this toolchain's* `std::shared_mutex` honour mutual exclusion? Runs an 8-thread `try_lock` storm with a critical-section counter, plus reader-vs-writer. Fails on MinGW over winpthreads, i.e. `RSM_BACKEND_STD` (~1 violation per 1200
   successful acquisitions); passes on MSVC / clang / clang-cl / 32-bit and on MinGW's
   default native backend.
-- `tests/mutual_exclusion.cpp` — does *the library* keep two writers out of the critical section, and no reader with a writer? The existing suite asserts reentrancy bookkeeping and error paths, but not this.
+- `tests/mutual_exclusion.cpp` — does *the library* keep two writers out of the critical section, and no reader with a writer? The existing suite asserts reentrancy bookkeeping and error paths, but not this. `--seed N` plus a per-thread ring of the last operations makes a failure replayable.
+- `tests/model_check.cpp` — *the spec itself*: random operation sequences compared against a shadow model. The single-threaded phase is exact (every return value and error code predicted, across several mutexes); the concurrent phase asserts only what a thread's own history decides plus per-mutex exclusion, and turns a stall into exit 3 with the rings instead of hanging. `--seed` reproduces the sequence.
 
 Failure injection uses the `RSM_ENABLE_TEST_HOOKS`-only `fail_next_shared_acquire` hook defined in the header; tests must not replace the global allocator.
 

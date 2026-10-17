@@ -22,6 +22,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -40,6 +41,7 @@ namespace
 		int threads = 8;
 		int iters = 100000;
 		int seconds = 0; // >0: wall-clock mode, iters ignored
+		unsigned seed = 0x5EEDu;
 	};
 
 	struct Counters
@@ -86,10 +88,14 @@ namespace
 			{
 				o.seconds = std::atoi(argv[i + 1]);
 			}
+			else if (std::strcmp(argv[i], "--seed") == 0)
+			{
+				o.seed = static_cast<unsigned>(std::strtoul(argv[i + 1], nullptr, 0));
+			}
 		}
 		if (o.threads < 2 || (o.iters < 1 && o.seconds < 1))
 		{
-			std::printf("usage: mutual_exclusion [--threads N>=2] [--iters N>=1] [--seconds S>=1]\n");
+			std::printf("usage: mutual_exclusion [--threads N>=2] [--iters N>=1] [--seconds S>=1] [--seed N]\n");
 			std::exit(2);
 		}
 		return o;
@@ -165,9 +171,66 @@ namespace
 		Counters& c_;
 	};
 
+	// Reproducibility: every thread records its recent operations in a ring, and a
+	// failing run prints them together with the seed, so the interleaving that
+	// produced the violation can be replayed instead of guessed at.
+	struct OpRec
+	{
+		std::uint32_t iter;
+		std::uint8_t kind;
+		std::int16_t depth;
+		std::uint8_t threw;
+	};
+
+	constexpr int kMaxThreads = 64;
+	constexpr std::uint32_t kRingSize = 1024;
+
+	struct ThreadRing
+	{
+		OpRec recs[kRingSize];
+		std::atomic<std::uint32_t> count{0};
+	};
+
+	ThreadRing g_rings[kMaxThreads];
+
+	void record(int id, std::uint32_t iter, int kind, int depth, bool threw)
+	{
+		if (id < 0 || id >= kMaxThreads)
+		{
+			return;
+		}
+		const std::uint32_t n = g_rings[id].count.fetch_add(1, std::memory_order_relaxed);
+		OpRec& r = g_rings[id].recs[n % kRingSize];
+		r.iter = iter;
+		r.kind = static_cast<std::uint8_t>(kind);
+		r.depth = static_cast<std::int16_t>(depth);
+		r.threw = threw ? 1 : 0;
+	}
+
+	void dumpRings(std::FILE* out)
+	{
+		for (int t = 0; t < kMaxThreads; ++t)
+		{
+			const std::uint32_t total = g_rings[t].count.load(std::memory_order_relaxed);
+			if (total == 0)
+			{
+				continue;
+			}
+			const std::uint32_t shown = total < kRingSize ? total : kRingSize;
+			std::fprintf(out, "  -- thread %d: last %u of %u operations --\n", t, shown, total);
+			for (std::uint32_t i = total - shown; i < total; ++i)
+			{
+				const OpRec& r = g_rings[t].recs[i % kRingSize];
+				std::fprintf(out, "  %8u kind=%u depth=%d threw=%u\n", r.iter, static_cast<unsigned>(r.kind), r.depth,
+				             static_cast<unsigned>(r.threw));
+			}
+		}
+		std::fflush(out);
+	}
+
 	void run(rsm::RecursiveSharedMutex& mtx, Counters& c, const Options& opt, int id)
 	{
-		std::mt19937 rng(0x5EEDu + static_cast<unsigned>(id) * 2654435761u);
+		std::mt19937 rng(opt.seed + static_cast<unsigned>(id) * 2654435761u);
 		const auto deadline = opt.seconds > 0 ? std::chrono::steady_clock::now() + std::chrono::seconds(opt.seconds)
 		                                      : std::chrono::steady_clock::time_point::max();
 		int depth = 0;
@@ -186,9 +249,11 @@ namespace
 				break;
 			}
 
+			const int kind = static_cast<int>(rng() % 8);
+			record(id, static_cast<std::uint32_t>(i), kind, depth, false);
 			try
 			{
-				switch (rng() % 8)
+				switch (kind)
 				{
 				case 0: // exclusive, nested twice
 				case 1: {
@@ -258,10 +323,12 @@ namespace
 			{
 				// The table-exhaustion path is a legitimate throw; anything else here
 				// means the recursion accounting got corrupted underneath us.
+				record(id, static_cast<std::uint32_t>(i), kind, depth, true);
 				++c.spuriousErrors;
 			}
 			catch (...)
 			{
+				record(id, static_cast<std::uint32_t>(i), kind, depth, true);
 				++c.spuriousErrors;
 			}
 		}
@@ -276,6 +343,7 @@ int main(int argc, char** argv)
 	Counters c;
 
 	std::printf("rsm::RecursiveSharedMutex mutual-exclusion test\n  toolchain: %s\n", toolchain().c_str());
+	std::printf("  seed=0x%X\n", opt.seed);
 	std::printf("  threads=%d %s\n", opt.threads,
 	            opt.seconds > 0 ? ("seconds=" + std::to_string(opt.seconds)).c_str() : ("iters=" + std::to_string(opt.iters)).c_str());
 
@@ -324,6 +392,10 @@ int main(int argc, char** argv)
 	std::printf("  lock left held      : %s\n", stranded ? "YES" : "no");
 
 	const long long failures = c.exclusiveOverlaps.load() + c.readerWithWriter.load() + c.spuriousErrors.load() + (stranded ? 1 : 0);
+	if (failures != 0)
+	{
+		dumpRings(stderr);
+	}
 
 	if (c.exclusiveWins.load() == 0 && c.sharedEntries.load() > 0)
 	{

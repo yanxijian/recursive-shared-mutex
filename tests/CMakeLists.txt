@@ -51,14 +51,17 @@ if(RSM_BUILD_STRESS)
 endif()
 
 # --- framework-free regression tests -----------------------------------------
-# These two do not use Catch2 on purpose: every CI cell (sanitizers, MinGW,
+# These do not use Catch2 on purpose: every CI cell (sanitizers, MinGW,
 # alpine/musl, 32-bit) can build and run them with a one-line compiler call, and
 # the backend contract test must run before anything else because it validates
 # the *toolchain*, not the library.
 add_executable(backend_contract ${CMAKE_CURRENT_LIST_DIR}/backend_contract.cpp)
 add_executable(mutual_exclusion ${CMAKE_CURRENT_LIST_DIR}/mutual_exclusion.cpp)
+# Model-based driver: the fixed suite checks the cases someone thought of; this
+# one checks the documented spec against a shadow model over random sequences.
+add_executable(model_check ${CMAKE_CURRENT_LIST_DIR}/model_check.cpp)
 
-foreach(tgt backend_contract mutual_exclusion)
+foreach(tgt backend_contract mutual_exclusion model_check)
 	target_link_libraries(${tgt} PRIVATE rsm::recursive_shared_mutex)
 	set_target_properties(${tgt} PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 endforeach()
@@ -67,8 +70,10 @@ if(UNIX)
 	find_package(Threads REQUIRED)
 	target_link_libraries(backend_contract PRIVATE Threads::Threads)
 	target_link_libraries(mutual_exclusion PRIVATE Threads::Threads)
+	target_link_libraries(model_check PRIVATE Threads::Threads)
 endif()
 
 add_test(NAME backend_contract COMMAND backend_contract --rounds 15 --iters 3000)
 add_test(NAME mutual_exclusion COMMAND mutual_exclusion --iters 20000)
-set_tests_properties(backend_contract mutual_exclusion PROPERTIES TIMEOUT 180)
+add_test(NAME model_check COMMAND model_check --seed 1 --ops 200000 --mutexes 8 --threads 4 --seconds 2)
+set_tests_properties(backend_contract mutual_exclusion model_check PROPERTIES TIMEOUT 180)

@@ -47,3 +47,39 @@ jobs:
 
       - name: Run (4 threads, 30 s)
         run: ./mutual_exclusion --threads 4 --seconds 30
+
+  model-check:
+    # The fixed suite checks the cases someone thought of. This one walks random
+    # operation sequences against a shadow model; each seed is a different
+    # interleaving family, so a nightly sweep samples the schedule space instead
+    # of replaying the same one for an hour.
+    name: model_check, 4 seeds x 30s
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: g++ -O2 -std=c++17 -pthread -Iinclude tests/model_check.cpp -o model_check
+
+      - name: Run (8 threads, seeds 1-4, 30 s each)
+        run: |
+          for seed in 1 2 3 4; do
+            echo "--- seed $seed ---"
+            ./model_check --seed "$seed" --ops 2000000 --threads 8 --seconds 30
+          done
+
+  model-check-tsan:
+    name: model_check 30s, TSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TSAN_OPTIONS: "halt_on_error=1 second_deadlock_stack=1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: g++ -O1 -g -std=c++17 -pthread -fsanitize=thread -Iinclude tests/model_check.cpp -o model_check
+
+      - name: Run (4 threads, seed 7, 30 s)
+        run: ./model_check --seed 7 --ops 500000 --threads 4 --seconds 30

@@ -2,7 +2,7 @@
 
 [English](migration.md) · **简体中文**
 
-<!-- translated-from: migration.md sha256:50f068ead4f6 -->
+<!-- translated-from: migration.md sha256:b9bc238eade6 -->
 
 ## 目标
 
@@ -95,7 +95,10 @@
   外加读者-写者重叠检测。在 MinGW 的 winpthreads 上（即 `RSM_BACKEND_STD`）会失败（约每 1200 次成功获取出现 1 次违规）；
   在 MSVC / clang / clang-cl / 32 位以及 MinGW 的默认原生后端上通过。
 - `tests/mutual_exclusion.cpp` —— *库本身*是否让两个写者互斥、读者不与写者重叠？既有套件只断言重入记账与错误路径，
-  没有检查这一条。
+  没有检查这一条。`--seed N` 加每线程操作环形日志，让失败可复现。
+- `tests/model_check.cpp` —— *规范本身*：用随机操作序列对照影子模型。单线程阶段是精确的（每个返回值和错误码都预测，
+  覆盖多把 mutex）；并发阶段只断言线程自身历史能决定的结果加按 mutex 的互斥，并把停滞变成退出码 3 加环形日志，
+  而不是挂死。`--seed` 可复现序列。
 
 故障注入使用 `RSM_ENABLE_TEST_HOOKS` 下才存在的 `fail_next_shared_acquire` 钩子；测试**不要**替换全局分配器。
 
