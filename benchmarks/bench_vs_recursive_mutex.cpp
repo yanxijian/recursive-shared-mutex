@@ -10,6 +10,7 @@
 #include <recursive_shared_mutex/recursive_shared_mutex.hpp>
 
 using RecursiveSharedMutex = rsm::RecursiveSharedMutex;
+using CacheAlignedRecursiveSharedMutex = rsm::CacheAlignedRecursiveSharedMutex;
 
 #include <atomic>
 #include <chrono>
@@ -439,6 +440,12 @@ int main(int argc, char** argv)
 	else if (a.impl == "rsm_exclusive" || (a.impl == "rsm" && a.exclusiveReads))
 	{
 		dispatch<RecursiveSharedMutex, false>(a, "RSM exclusive-only");
+	}
+	else if (a.impl == "rsm_padded")
+	{
+		// Same component, cache-line-aligned instance. Meaningful for --mode
+		// sharded, where the 24-byte default packs ~2.6 mutexes per cache line.
+		dispatch<CacheAlignedRecursiveSharedMutex, true>(a, "RSM cache-aligned");
 	}
 	else
 	{
