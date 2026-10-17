@@ -334,10 +334,15 @@ jobs:
       - name: Build
         run: cmake --build build
       - name: Run (metrics tests excluded on purpose)
+        # Under TSAN every memory access is instrumented, and the contract test's
+        # 200-iteration critical section makes it ~100x slower: 10 rounds x 2000
+        # iterations x 8 threads ran for 10+ minutes without finishing. TSAN only
+        # needs enough interleavings to surface a race, not throughput, so cut
+        # the work per cell.
         run: |
           ./build/tests/rsm_tests
-          ./build/tests/backend_contract --rounds 10 --iters 2000
-          ./build/tests/mutual_exclusion --iters 20000
+          ./build/tests/backend_contract --threads 4 --rounds 3 --iters 300
+          ./build/tests/mutual_exclusion --threads 4 --iters 4000
 
   # ---------------------------------------------------------------------------
   # 4. Language-mode and module-boundary coverage.
