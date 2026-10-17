@@ -42,8 +42,8 @@ on:
       update_mode:
         description: What to do with the refreshed results
         type: choice
-        options: [pull-request, commit, none]
-        default: pull-request
+        options: [auto-merge, pull-request, commit, none]
+        default: auto-merge
       regression_pct:
         description: Fail when a speedup drops by more than this percentage (0 = do not gate)
         type: string
@@ -124,7 +124,7 @@ jobs:
         # pushed either way, so a maintainer can open it with one click - see the
         # fallback step below.
         continue-on-error: true
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode != 'commit' && inputs.update_mode != 'none'
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && (inputs.update_mode == 'auto-merge' || inputs.update_mode == 'pull-request')
         uses: peter-evans/create-pull-request@v6
         with:
           branch: bench/refresh-${{ matrix.name }}
@@ -137,17 +137,49 @@ jobs:
 
             - Measured on a `windows-2022` GitHub runner, medians of ${{ inputs.repeats || '3' }} runs.
             - Absolute numbers belong to that runner; compare the speedup column.
-            - Opened by `.github/workflows/benchmarks.yml`. It carries no checks:
-              PRs created with `GITHUB_TOKEN` do not trigger workflows (GitHub
-              limitation) - acceptable for a results-only change.
+            - Opened by `.github/workflows/benchmarks.yml` and **merged automatically**
+              when the diff stays inside `benchmarks/results/ci-*.md`. It carries no
+              checks: PRs created with `GITHUB_TOKEN` do not start workflows (GitHub
+              limitation), and a results-only change does not need the full matrix.
+
+      - name: Merge it, so nobody has to
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'auto-merge'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $num = "${{ steps.pr.outputs.pull-request-number }}"
+          if (-not $num) {
+            Write-Host "Nothing to merge: the results file is unchanged."
+            exit 0
+          }
+          # Only results files may be touched. If the bot ever picked up anything
+          # else, leave the PR for a human instead of merging blindly.
+          $paths = @(gh pr view $num --json files --jq '.files[].path')
+          $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/ci-[A-Za-z0-9._-]+\.md$' })
+          if ($unexpected.Count -gt 0) {
+            Write-Host "::warning::not auto-merging #$num: it touches $($unexpected -join ', ')"
+            exit 0
+          }
+          # Mergeability is computed asynchronously right after the PR appears, and
+          # the other matrix cell may be merging at the same time; retry a few times.
+          for ($i = 1; $i -le 6; $i++) {
+            gh pr merge $num --squash --delete-branch 2>&1 | Write-Host
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Auto-merged #$num ($($paths -join ', '))."
+              exit 0
+            }
+            Start-Sleep -Seconds 10
+          }
+          throw "could not merge #$num after 6 attempts"
 
       - name: Report the outcome
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode != 'none'
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && (inputs.update_mode == 'pull-request' || inputs.update_mode == 'auto-merge')
         shell: pwsh
         run: |
           $branch = "bench/refresh-${{ matrix.name }}"
           if ("${{ steps.pr.outcome }}" -eq "success") {
-            Write-Host "Opened or updated a pull request from $branch."
+            Write-Host "Pull request for $branch: ${{ steps.pr.outputs.pull-request-url }}"
           }
           else {
             $url = "${{ github.server_url }}/${{ github.repository }}/compare/main...$branch?expand=1"

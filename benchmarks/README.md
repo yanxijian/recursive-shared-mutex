@@ -18,7 +18,7 @@ The driver is built through CMake (`-DRSM_BUILD_BENCHMARKS=ON`, target `bench_rs
 
 [`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) runs these scenarios on a pinned `windows-2022` runner:
 
-- **Weekly (Mon 03:00 UTC)** and on demand: measure MSVC and MinGW, then open a PR that refreshes `results/*.md` (`update_mode: pull-request` by default; `commit` and `none` are available).
+- **Weekly (Mon 03:00 UTC)** and on demand: measure MSVC and MinGW, open a PR that refreshes `results/ci-*.md`, and **merge it automatically** (`update_mode: auto-merge` by default; `pull-request` leaves it for review, `commit` pushes straight to the branch, `none` only measures). The auto-merge refuses anything outside `benchmarks/results/ci-*.md`, so the pipeline cannot touch code or the desktop numbers.
 - **On PRs touching `include/**` or `benchmarks/**`**: a short run compared against the committed baseline. A scenario that drops by more than 25% fails the job.
 
 Two deliberate limits:
