@@ -3,8 +3,24 @@ name: CI
 on:
   push:
     branches: [main, master]
+    # Positive filters: a build starts only when something it builds changed. A
+    # documentation or script change cannot break the build, so it does not start
+    # three operating systems. Keep the rules checks out of here - they belong to
+    # hygiene.yml, which has to run on documentation changes.
+    paths: &build_inputs
+      - "include/**"
+      - "tests/**"
+      - "examples/**"
+      - "benchmarks/*.cpp"
+      - "benchmarks/CMakeLists.txt"
+      - "cmake/**"
+      - "CMakeLists.txt"
+      - ".clang-format"
+      - ".gitattributes"
+      - ".github/workflows/ci.yml"
   pull_request:
     branches: [main, master]
+    paths: *build_inputs
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -35,50 +51,3 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure --timeout 120
-
-  repo-rules:
-    # AGENTS.md rules that a program can check: encoding (BOM+CRLF), column limit,
-    # #pragma comment(lib), header hygiene, version sync, changelog section.
-    # This is what makes the rules binding for every agent, not just advice.
-    name: repo-rules
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check repository rules
-        run: python3 scripts/check_repo_rules.py
-
-  clang-format:
-    name: clang-format
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install clang-format (pinned)
-        # Pinned through PyPI, not apt: the distro package moves with the image and
-        # silently reflows the tree when it does. Bump this on purpose, together
-        # with a reformatting commit.
-        run: |
-          python3 -m venv "$RUNNER_TEMP/fmt"
-          "$RUNNER_TEMP/fmt/bin/pip" install --quiet --disable-pip-version-check clang-format==22.1.8
-          echo "$RUNNER_TEMP/fmt/bin" >> "$GITHUB_PATH"
-
-      - name: Report the version
-        run: clang-format --version
-
-      - name: Check formatting
-        run: >
-          clang-format --dry-run -Werror
-          include/recursive_shared_mutex/recursive_shared_mutex.hpp
-          include/recursive_shared_mutex/instrumented_write_lock.hpp
-          tests/test_recursive_shared_mutex.cpp
-          tests/test_instrumented_write_lock.cpp
-          tests/backend_contract.cpp
-          tests/mutual_exclusion.cpp
-          examples/basic_usage.cpp
-          examples/cross_module_hazard/dll_side.cpp
-          examples/cross_module_hazard/exe_side.cpp
-          examples/cross_module_hazard/iface.h
-          benchmarks/bench_vs_recursive_mutex.cpp
