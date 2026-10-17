@@ -184,6 +184,10 @@ jobs:
 
       - name: Record the batch in the soak history
         if: ${{ inputs.record }}
+        env:
+          SHARDS: ${{ inputs.shards }}
+          MINUTES: ${{ inputs.minutes }}
+          THREADS: ${{ inputs.threads }}
         run: |
           python3 - <<'PY'
           import datetime, os, pathlib
