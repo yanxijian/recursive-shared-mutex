@@ -7,7 +7,8 @@
 # other, and the host's second lock_shared() reaches the backend again.
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
-REPO=${RSM_REPO:-/path/to/recursive-shared-mutex}
+# Default: the repo root two levels up (examples/cross_module_hazard -> root).
+REPO=${RSM_REPO:-$(cd "$HERE/../.." && pwd)}
 INC="$REPO/include"
 OUT="$HERE/out-unix"
 CXX=${CXX:-c++}
