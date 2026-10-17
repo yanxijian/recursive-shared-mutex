@@ -59,7 +59,7 @@ wasteful when a mutex is embedded in a per-object struct. Reproduce with
 | Macro | Default | Effect |
 |---|---|---|
 | `RSM_SHARED_SLOT_COUNT` | `256` | Per-thread cap on tracked mutexes; one slot is 16 B of TLS, so the default costs 4 KB per thread. Lower it for thread-heavy targets. |
-| `RSM_VERSION_MAJOR/MINOR/PATCH`, `RSM_VERSION` | `0/3/1` | Header version, for consumers that only see the file (FetchContent). Kept in sync with `project(VERSION)`. |
+| `RSM_VERSION_MAJOR/MINOR/PATCH`, `RSM_VERSION` | `0/4/0` | Header version, for consumers that only see the file (FetchContent). Kept in sync with `project(VERSION)`. |
 | `RSM_BACKEND_SRWLOCK` | on for MinGW, off elsewhere | Use the native Win32 SRWLOCK wrapper as the backend. Auto-selected on `__MINGW32__` because the alternative is unsound there. |
 | `RSM_BACKEND_STD` | off | Force `std::shared_mutex` even on MinGW. Only useful to reproduce the winpthreads defect; a weekly CI probe does exactly that. |
 | `RSM_NO_DEBUG_ASSERT` | off | Disables the debug-only "destroyed while locked" assertion. |
@@ -153,7 +153,7 @@ include(FetchContent)
 FetchContent_Declare(
   recursive_shared_mutex
   GIT_REPOSITORY https://github.com/yanxijian/recursive-shared-mutex.git
-  GIT_TAG v0.3.1
+  GIT_TAG v0.4.0
 )
 FetchContent_MakeAvailable(recursive_shared_mutex)
 target_link_libraries(your_target PRIVATE rsm::recursive_shared_mutex)

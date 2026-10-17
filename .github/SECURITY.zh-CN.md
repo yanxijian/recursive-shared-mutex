@@ -2,13 +2,14 @@
 
 [English](SECURITY.md) · **简体中文**
 
-<!-- translated-from: .github/SECURITY.md sha256:896af52fad41 -->
+<!-- translated-from: .github/SECURITY.md sha256:75a4effb981c -->
 
 ## 支持的版本
 
 | 版本    | 是否支持 |
 |---------|----------|
-| 0.3.x   | 是       |
+| 0.4.x   | 是       |
+| 0.3.x   | 否       |
 | 0.2.x   | 否       |
 | 0.1.x   | 否       |
 

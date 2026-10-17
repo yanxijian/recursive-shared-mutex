@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:903a3e267358 -->
+<!-- translated-from: README.md sha256:aacbe7f4fc0d -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -61,7 +61,7 @@ std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
 | 宏 | 默认值 | 作用 |
 |---|---|---|
 | `RSM_SHARED_SLOT_COUNT` | `256` | 每线程跟踪的 mutex 上限；一个槽位占 16 B TLS，所以默认每线程 4 KB。线程极多时可调小。 |
-| `RSM_VERSION_MAJOR/MINOR/PATCH`、`RSM_VERSION` | `0/3/1` | 头文件版本，供只能看到这个文件的消费者（FetchContent）使用。与 `project(VERSION)` 保持一致。 |
+| `RSM_VERSION_MAJOR/MINOR/PATCH`、`RSM_VERSION` | `0/4/0` | 头文件版本，供只能看到这个文件的消费者（FetchContent）使用。与 `project(VERSION)` 保持一致。 |
 | `RSM_BACKEND_SRWLOCK` | MinGW 上开，其它平台关 | 使用原生 Win32 SRWLOCK 包装作为后端。在 `__MINGW32__` 上自动选中，因为那里的另一个选择不可靠。 |
 | `RSM_BACKEND_STD` | 关 | 即使在 MinGW 上也强制 `std::shared_mutex`。仅用于复现 winpthreads 缺陷；每周的 CI 探针正是这么做的。 |
 | `RSM_NO_DEBUG_ASSERT` | 关 | 关闭仅 Debug 的"持锁析构"断言。 |
@@ -142,7 +142,7 @@ include(FetchContent)
 FetchContent_Declare(
   recursive_shared_mutex
   GIT_REPOSITORY https://github.com/yanxijian/recursive-shared-mutex.git
-  GIT_TAG v0.3.1
+  GIT_TAG v0.4.0
 )
 FetchContent_MakeAvailable(recursive_shared_mutex)
 target_link_libraries(your_target PRIVATE rsm::recursive_shared_mutex)

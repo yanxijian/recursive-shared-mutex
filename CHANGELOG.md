@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.4.0] - 2026-10-18
+
+- Documentation and comments re-synced with the code after a from-scratch audit: a header comment still claimed `tests/backend_contract.cpp` did not cover the "refuse `try_lock()` while this thread holds it shared" promise (check [4] does), a v0.3.1 entry named `ci.yml` as the only workflow for docs-only pushes (it is `hygiene.yml`), a v0.3.0 entry still said 120 columns after the same release raised it to 140, the roadmap dated the metrics header to v0.2.1 (it landed in v0.3.0) and called the ARM64 runner a preview, `benchmarks/README.md` had two literal `?` where `->` and `+-6%` were meant, `docs/platform-notes.md` carried a stray UTF-8 BOM, the suite counts said 25 where there are 29, and the test matrix omitted T13/T14. The README now documents `is_held_exclusive()` and `scripts/tests/`, and the MSVC exclusive-path figure has one source again (`docs/platform-notes.md` §1, 4.6 ns).
 - `E3` now also checks the `try_*` half of the table-exhaustion asymmetry: with all 256 slots held, `try_lock_shared()` returns `false` instead of throwing. gcov showed that branch was never executed, and R9 pointed at `tests/backend_contract.cpp` for it - a file that has nothing to do with the slot table. R9 now names the test that actually covers both halves.
 - New nightly `soak.yml`: the mutual-exclusion driver runs for 60 s, and for 30 s under TSan, every night. The push-time suite finishes in about three seconds, which is not a soak for a concurrency primitive; a race that needs a lucky interleaving needs more than that.
 - The header records two measured dead ends so a later agent does not repeat them: merging the two slot-table TLS reads in `findActiveSlot()` (35.07 vs 35.35 ns, inside the 0.03 ns A/A noise) and dropping the `used == 0` fast path in `lock()` for a try_lock-first path (equal uncontended, 1.2-1.8x worse with four contending writers). The `RSM_SHARED_SLOT_COUNT` note also stops implying that only readers touch the table: `lock()` and `try_lock()` read it as well, so the 4 KB is per thread that ever locks.
@@ -129,7 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI (Windows / Ubuntu / macOS)
 - MIT license and standard community health files
 
-[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.4.0...HEAD
+[v0.4.0]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.1...v0.3.0
 [v0.2.1]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.0...v0.2.1
