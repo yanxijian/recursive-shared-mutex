@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `AGENTS.md` + `scripts/check_repo_rules.py`: one rule set for every agent (Claude Code, Codex, Cursor, Copilot, Gemini CLI), with the mechanical rules (UTF-8 BOM + CRLF, 120 columns, no `#pragma comment(lib)`, header hygiene, version sync, changelog section) enforced by a `repo-rules` CI job and an optional pre-commit hook.
 - `RSM_BACKEND_SRWLOCK`: opt-in backend policy that swaps `std::shared_mutex` for an 8-byte SRWLOCK wrapper (`rsm::detail::SrwLockBackend`, exposed as `RecursiveSharedMutex::backend_type`). It is what makes the component usable on MinGW-w64: exclusive `lock+unlock` 62.8 â†’ 23.4 ns/pair, the exclusive-only benchmark ratio 0.067Ã— â†’ 1.52Ã—, and `tests/backend_contract.cpp` goes from 245 violations to zero. No-op on MSVC (whose `std::shared_mutex` is already SRWLOCK); requires Windows Vista+; default behaviour is unchanged on every other platform.
 - `tests/backend_contract.cpp`: framework-free check that the mutex the library is actually built on honours mutual exclusion. It reports the backend (`std::shared_mutex` vs `SrwLockBackend`), so CI can prove the switch fixes the MinGW cell.
 - `tests/mutual_exclusion.cpp`: framework-free check that the library keeps writers mutually exclusive and readers out while a writer is inside â€” a property the existing suite did not assert.

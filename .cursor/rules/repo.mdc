@@ -6,9 +6,8 @@ alwaysApply: true
 
 # recursive-shared-mutex - read AGENTS.md first
 
-[AGENTS.md](mdc:AGENTS.md) holds the full rule set, the reasoning, and a
-provenance table for rules imported from `Volition/.cursor/rules`. This file only
-exists because Cursor needs a `.mdc` entry point with `alwaysApply`.
+[AGENTS.md](mdc:AGENTS.md) holds the full rule set and the reasoning. This file
+only exists because Cursor needs a `.mdc` entry point with `alwaysApply`.
 
 ## Enforced by `scripts/check_repo_rules.py` (fails CI)
 
@@ -39,10 +38,3 @@ exists because Cursor needs a `.mdc` entry point with `alwaysApply`.
 - Parameter passing: scalars by value, large read-only by `const&`, sinks by
   value + `std::move`, `string_view` never stored. Review priority:
   correctness > lifetime > threading > style.
-
-## Not adopted from Volition
-
-`cpp-naming.mdc` (Qt `m_`/`g_`/`s_` prefixes, lowerCamelCase) and
-`cpp-include-guards.mdc` (`__TARGET_FILE_H__` instead of `#pragma once`) do not
-apply here; AGENTS.md records why. Do not reintroduce them without updating that
-provenance table.
