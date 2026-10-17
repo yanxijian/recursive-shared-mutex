@@ -7,8 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Building with clang-cl failed: it disables C++ exceptions by default, and the header throws std::system_error by design. The header now emits one clear #error when exceptions are off, the CMake target asks for /EHsc on MSVC-simulating compilers, and README lists it as a requirement.
+- The CMake package reported version `0.1.0` while releases were at `v0.2.1`, so `find_package(recursive_shared_mutex 0.2 REQUIRED)` failed against an installed tree. The project version (and therefore `recursive_shared_mutexConfigVersion.cmake`) now tracks the released version.
+- README described the shared-recursion state as a `thread_local` intrusive list "released on thread exit", which stopped being true in v0.2.0 (dense POD slot table, no thread-exit release). Corrected, together with the performance summary: MSVC/clang are at 0.9Ã—â€“1.2Ã— of `std::recursive_mutex` on the exclusive path, MinGW-GCC at 0.07Ã—â€“0.2Ã—, with the toolchain-level cause spelled out.
+- The project version reported `0.1.0` while releases were at `v0.2.1`, so `find_package(recursive_shared_mutex 0.2 REQUIRED)` failed against an installed tree. `project(VERSION)` now matches the header's `RSM_VERSION_*`.
+- `tests/test_recursive_shared_mutex.cpp` asserted with `REQUIRE` inside a spawned thread. Catch2 assertions must run on the main thread: a failing one escapes as `Catch::TestFailureException` and terminates the whole test process instead of failing the case. The observation is now recorded in a bool and asserted after `join()`.
+
+### Changed
+
+- `try_lock_shared()` returns `false` instead of throwing when the per-thread slot table is full. `SharedLockable` requires `try_lock_shared` not to throw, and the previous behaviour made `std::shared_lock(mtx, std::try_to_lock)` non-conforming. `lock_shared()` still throws `resource_unavailable_try_again` on exhaustion.
+- `RSM_BUILD_TESTS` / `RSM_BUILD_EXAMPLES` default to `ON` only when the project is top-level, so `add_subdirectory()` / `FetchContent_MakeAvailable()` consumers no longer download Catch2 and build two test binaries by default.
+- Documented that a mismatched `unlock`/`unlock_shared` ends in `std::terminate` (the throwing call is reached from `noexcept` RAII destructors), that `std::condition_variable_any` is unsafe once recursion depth > 1, and that a cross-module shared-lock sequence is undefined behaviour rather than just a stranded slot.
+
 ### Added
 
+- `RSM_BACKEND_SRWLOCK`: opt-in backend policy that swaps `std::shared_mutex` for an 8-byte SRWLOCK wrapper (`rsm::detail::SrwLockBackend`, exposed as `RecursiveSharedMutex::backend_type`). It is what makes the component usable on MinGW-w64: exclusive `lock+unlock` 62.8 â†’ 23.4 ns/pair, the exclusive-only benchmark ratio 0.067Ã— â†’ 1.52Ã—, and `tests/backend_contract.cpp` goes from 245 violations to zero. No-op on MSVC (whose `std::shared_mutex` is already SRWLOCK); requires Windows Vista+; default behaviour is unchanged on every other platform.
+- `tests/backend_contract.cpp`: framework-free check that the mutex the library is actually built on honours mutual exclusion. It reports the backend (`std::shared_mutex` vs `SrwLockBackend`), so CI can prove the switch fixes the MinGW cell.
+- `tests/mutual_exclusion.cpp`: framework-free check that the library keeps writers mutually exclusive and readers out while a writer is inside â€” a property the existing suite did not assert.
+- `.github/workflows/platform-matrix.yml`: cross-platform CI matrix (MSVC x64/x86 and x64+SRWLOCK, clang-cl, MinGW-UCRT64 default *and* with `RSM_BACKEND_SRWLOCK`, gcc-11/13, clang+libstdc++, clang+libc++, macOS arm64/x86_64, Linux arm64, alpine/musl, TSAN/ASAN+UBSAN, C++20 notice assertion, shared-library TLS domain). The backend contract test runs first in every cell; the two MinGW cells that use the unsound default backend are marked `continue-on-error` with the reason.
+- `examples/cross_module_hazard/`: a real DLL/.so reproducer for the per-module TLS table, showing that the same thread re-acquires the backend inside the second module (undefined behaviour that is silent on SRWLOCK and on reader-preferring rwlocks).
+- `docs/platform-notes.md`: measured three-toolchain data (MinGW-GCC 13.2 / MSVC 19.51 / clang 22.1), the backend contract results, the before/after of the SRWLOCK switch, and reproduction commands.
 - `rsm::CacheAlignedRecursiveSharedMutex`: a 64-byte-aligned instance for sharded arrays. The default instance is 24 bytes, so ~2.6 of them share a cache line and the shards false-share the owner/counter updates. Measured with 8 shards / 16 threads (0 %, 15 %, 50 % writes): 13.9–14.3 M → 31.3–33.2 M total ops/s on MSVC, 28.1 M → 57.3 M on MinGW. New benchmark implementation `--impl rsm_padded` (meaningful with `--mode sharded`).
 - `RSM_VERSION_MAJOR/MINOR/PATCH` and `RSM_VERSION`: the header now carries its own version, for consumers that pull it with `FetchContent` and cannot see the CMake package.
 - `RSM_SHARED_SLOT_COUNT` override: the per-thread slot table cap is now a macro (default unchanged at 256, i.e. 4 KB of TLS per thread), so thread-heavy or embedded targets can shrink it.
@@ -16,17 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Debug-only assertion in the destructor (`owner_` / exclusive counters non-zero) so "destroyed while locked" fails at the point of misuse instead of corrupting a later mutex at the same address. Disable with `RSM_NO_DEBUG_ASSERT`.
 - Writer-starvation observability (roadmap R2): optional opt-in header `recursive_shared_mutex/instrumented_write_lock.hpp` with an RAII `instrumented_write_lock` guard that measures write WAIT (blocked acquisition) and HOLD (exclusive critical section) and reports them to a pluggable `Recorder` sink (built-in `AtomicStatsRecorder`: count/total/max, atomics only). Zero cost when no recorder is installed (even clock reads are skipped), core component untouched, constructor-failure (fail-fast) records nothing, destructor is noexcept, and sink exceptions are swallowed. Intended to feed `rsm_write_wait_seconds` / `rsm_write_hold_seconds` histograms (see `docs/roadmap.md` R2).
 
-### Fixed
-
-- The project version reported `0.1.0` while releases were at `v0.2.1`, so `find_package(recursive_shared_mutex 0.2 REQUIRED)` failed against an installed tree. `project(VERSION)` now matches the header's `RSM_VERSION_*`.
-- `tests/test_recursive_shared_mutex.cpp` asserted with `REQUIRE` inside a spawned thread. Catch2 assertions must run on the main thread: a failing one escapes as `Catch::TestFailureException` and terminates the whole test process instead of failing the case. The observation is now recorded in a bool and asserted after `join()`.
-
 ## [v0.2.1] - 2026-10-16
 
 ### Performance
 
 - The per-thread shared-slot table now keeps active slots dense in `[0, used)` with swap-with-last compaction on unlock-to-zero (and in the defensive destructor path). `findActiveSlot` scans only the active prefix, so threads holding no shared slots skip the scan entirely; the `depth == 0` slot-reuse branch became unreachable and was removed.
-- Measured on MinGW-w64 GCC 13.2 (UCRT): exclusive `lock()+unlock()` 365.6 → 108.6 ns/pair (**3.4×**), cold shared acquire/release churn 367.1 → 152.6 ns/pair (**2.4×**). Semantics verified unchanged by the full boundary suite (1051 checks) and the test matrix.
+- Measured on MinGW-w64 GCC 13.2 (UCRT): exclusive `lock()+unlock()` 365.6 â†’ 108.6 ns/pair (**3.4Ã—**), cold shared acquire/release churn 367.1 â†’ 152.6 ns/pair (**2.4Ã—**). Semantics verified unchanged by the full boundary suite (1051 checks) and the test matrix.
 - The dense-slot invariant and the POINTER-STABILITY red line (slot pointers are used across the blocking `mtx_.lock_shared()` call; safe only because a blocked call suspends the whole thread) are documented in the header. The rejected `release_shared_unchecked()` escape valve (unowned double-release UB hazard) is documented in `docs/migration.md`.
 
 ## [0.2.0] - 2026-10-16

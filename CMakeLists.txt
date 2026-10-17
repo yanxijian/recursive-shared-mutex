@@ -10,9 +10,16 @@ project(recursive_shared_mutex
 # Keep VERSION in sync with RSM_VERSION_* in the header: the header is what
 # FetchContent consumers see, this is what find_package() sees, and they used to
 # disagree (0.1.0 here while v0.2.x was released).
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(RSM_IS_TOP_LEVEL ON)
+else()
+	set(RSM_IS_TOP_LEVEL OFF)
+endif()
 
-option(RSM_BUILD_TESTS "Build unit tests" ON)
-option(RSM_BUILD_EXAMPLES "Build examples" ON)
+# Default OFF when consumed via add_subdirectory()/FetchContent: a consumer must
+# not be forced to fetch Catch2 and build two test binaries just to use a header.
+option(RSM_BUILD_TESTS "Build unit tests" ${RSM_IS_TOP_LEVEL})
+option(RSM_BUILD_EXAMPLES "Build examples" ${RSM_IS_TOP_LEVEL})
 
 add_library(recursive_shared_mutex INTERFACE)
 add_library(rsm::recursive_shared_mutex ALIAS recursive_shared_mutex)
@@ -24,6 +31,14 @@ target_include_directories(recursive_shared_mutex
 )
 
 target_compile_features(recursive_shared_mutex INTERFACE cxx_std_17)
+
+# The header reports misuse with std::system_error, so it needs C++ exceptions.
+# cl.exe enables them by default but clang-cl does not (/EHsc), and some MSVC
+# project templates disable them. Ask for them here so consumers - and this
+# repo's own clang-cl CI cell - do not have to know that.
+if(MSVC)
+	target_compile_options(recursive_shared_mutex INTERFACE /EHsc)
+endif()
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
