@@ -25,8 +25,8 @@
 //   RSM_NO_DEBUG_ASSERT
 //     Disables the debug-only checks (destruction while locked).
 #define RSM_VERSION_MAJOR 0
-#define RSM_VERSION_MINOR 2
-#define RSM_VERSION_PATCH 1
+#define RSM_VERSION_MINOR 3
+#define RSM_VERSION_PATCH 0
 #define RSM_VERSION (RSM_VERSION_MAJOR * 10000 + RSM_VERSION_MINOR * 100 + RSM_VERSION_PATCH)
 
 #ifndef RSM_SHARED_SLOT_COUNT
