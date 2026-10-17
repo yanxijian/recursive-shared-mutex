@@ -225,28 +225,22 @@ TEXT_SUFFIXES = {
 }
 
 EOL_DEFAULT = "lf"
+# Documentation, workflows and scripts are LF, matching .editorconfig's [*]
+# default. These predate that and are still CRLF; converting them is a separate,
+# deliberate change - which is why they are named here rather than fixed quietly.
 EOL_POLICY = {
     ".editorconfig": "crlf",
     ".gitignore": "crlf",
-    ".github/ISSUE_TEMPLATE/bug_report.md": "crlf",
     ".github/ISSUE_TEMPLATE/config.yml": "crlf",
-    ".github/ISSUE_TEMPLATE/feature_request.md": "crlf",
-    ".github/PULL_REQUEST_TEMPLATE.md": "crlf",
     ".github/workflows/ci.yml": "crlf",
-    "CHANGELOG.md": "crlf",
     "CMakeLists.txt": "crlf",
-    "CODE_OF_CONDUCT.md": "crlf",
-    "CONTRIBUTING.md": "crlf",
     "LICENSE": "crlf",
-    "SECURITY.md": "crlf",
     "cmake/recursive_shared_mutexConfig.cmake.in": "crlf",
-    "docs/migration.md": "crlf",
     "examples/CMakeLists.txt": "crlf",
     "tests/CMakeLists.txt": "crlf",
-    # Genuinely mixed before this rule existed; both endings must survive.
-    "README.md": "mixed",
-    "docs/platform-notes.md": "mixed",
 }
+# "mixed" is still accepted for a path listed here: it means the file must keep
+# both endings. No file needs it today.
 
 TEXT_NAMES = {"LICENSE", ".gitignore", ".editorconfig"}
 
