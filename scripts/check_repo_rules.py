@@ -262,9 +262,9 @@ GITATTRIBUTES_REQUIRED = (
 # ---------------------------------------------------------------------------
 TRANSLATED_DOCS = (
     "README.md",
-    "CONTRIBUTING.md",
-    "SECURITY.md",
-    "CODE_OF_CONDUCT.md",
+    ".github/CONTRIBUTING.md",
+    ".github/SECURITY.md",
+    ".github/CODE_OF_CONDUCT.md",
     "benchmarks/README.md",
     "docs/migration.md",
     "docs/platform-notes.md",

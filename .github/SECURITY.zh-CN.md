@@ -2,7 +2,7 @@
 
 [English](SECURITY.md) · **简体中文**
 
-<!-- translated-from: SECURITY.md sha256:896af52fad41 -->
+<!-- translated-from: .github/SECURITY.md sha256:896af52fad41 -->
 
 ## 支持的版本
 

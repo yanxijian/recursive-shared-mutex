@@ -9,10 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The three governance documents moved from the root into `.github/`
+  (`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` and their Chinese
+  editions). GitHub looks for all three in the root, `docs/` or `.github/`, so
+  nothing about how they surface changed; the root now holds only what a reader
+  opens first: `README.md`, `README.zh-CN.md`, `CHANGELOG.md`, `LICENSE`,
+  `AGENTS.md` and `CLAUDE.md`.
 - Simplified Chinese editions of the eight reader-facing documents (README, CONTRIBUTING, SECURITY, CODE_OF_CONDUCT, benchmarks/README, docs/migration, docs/platform-notes, docs/roadmap), side by side as `*.zh-CN.md`. English stays the default; each pair links to the other under its title and the translation records the English revision it came from as a content hash.
 - New rule R8, enforced by `scripts/check_repo_rules.py`: the translated set must stay complete, both sides must keep their switcher link, and a translation whose English source moved on is reported as `STALE` (a warning, not a failure - translating must not block a merge, but it must not go unnoticed either).
 - Repaired cp1252 double-encoding in `docs/platform-notes.md` and `CHANGELOG.md` (`Ã—` was `×`, `â€“` was `–`, `â‰ˆ` was `≈`).
-- `SECURITY.md` listed only 0.1.x as supported; it now lists 0.3.x.
+- `.github/SECURITY.md` listed only 0.1.x as supported; it now lists 0.3.x.
 - Batch files moved onto the same rule as C/C++ in `.gitattributes`: CRLF in the object store and on checkout (`-text -eol`), instead of LF-in-store / CRLF-on-checkout. One mechanism for "this file must be CRLF" instead of two, and an accidental LF flip is now a visible diff rather than something git normalises away.
 - Line endings now follow a declared standard instead of a hand-maintained list: new `.gitattributes` keeps C/C++ as UTF-8 BOM + CRLF and marks it `-text` (git never converts those bytes), stores `.bat`/`.cmd` as LF and checks them out as CRLF, and normalises everything else to LF (`* text=auto eol=lf`), matching `.editorconfig`. The nine remaining CRLF build/tooling files were converted; R7 now verifies the working tree against `.gitattributes` and verifies that `.gitattributes` still declares the standard.
 - All Markdown converted to LF, which is what `.editorconfig` already declared as its default: the 8 documents that were CRLF (`CHANGELOG`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `docs/migration.md`, the issue/PR templates) and the 2 that were mixed (`README.md`, `docs/platform-notes.md`) are now plain LF. Content is unchanged - `git diff --ignore-cr-at-eol` is empty - and R7's `EOL_POLICY` no longer lists any markdown file, so new docs default to LF and a flip still fails the build.

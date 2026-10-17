@@ -2,7 +2,7 @@
 
 [English](CODE_OF_CONDUCT.md) · **简体中文**
 
-<!-- translated-from: CODE_OF_CONDUCT.md sha256:b57930845827 -->
+<!-- translated-from: .github/CODE_OF_CONDUCT.md sha256:b57930845827 -->
 
 ## 我们的承诺
 
