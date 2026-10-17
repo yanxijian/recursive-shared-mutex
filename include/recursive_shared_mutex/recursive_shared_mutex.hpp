@@ -114,13 +114,26 @@
 #error "rsm::RecursiveSharedMutex requires C++ exceptions: pass /EHsc (MSVC, clang-cl) or -fexceptions"
 #endif
 
+// BACKEND DEFAULT ON MinGW: libstdc++'s std::shared_mutex is built on
+//   winpthreads, whose rwlock lets two threads hold the exclusive lock at the
+//   same time (measured: 3-171 overlapping owners per run, see
+//   docs/platform-notes.md) and is ~11x slower than a native SRWLOCK. A default
+//   that is unsound is not a default worth keeping, so on MinGW the native
+//   backend is selected automatically. Define RSM_BACKEND_STD to keep
+//   std::shared_mutex anyway (e.g. to reproduce the defect, or when linking
+//   against a toolchain whose std::shared_mutex is sound).
+#if defined(__MINGW32__) && !defined(RSM_BACKEND_SRWLOCK) && !defined(RSM_BACKEND_STD)
+#define RSM_BACKEND_SRWLOCK 1
+#define RSM_BACKEND_AUTO_SELECTED 1
+#endif
+
 // BACKEND SELECTION: define RSM_BACKEND_SRWLOCK to use the Win32 SRWLOCK
 //   directly instead of std::shared_mutex.
 //   - On MSVC this is a no-op in practice (std::shared_mutex already *is*
 //     SRWLOCK), so it only matters for code that wants the guarantee explicit.
-//   - On MinGW-w64 it avoids libstdc++'s winpthreads rwlock, which is ~11x
-//     slower than a native SRWLOCK and - more importantly - does not keep
-//     try_lock() mutually exclusive (see docs/platform-notes.md). With
+//   - On MinGW-w64 it is the default (see above): it avoids libstdc++'s
+//     winpthreads rwlock, which is ~11x slower than a native SRWLOCK and - more
+//     importantly - does not keep try_lock() mutually exclusive. With
 //     RSM_BACKEND_SRWLOCK the exclusive path drops from ~61 ns to ~4 ns per
 //     lock/unlock pair and tests/backend_contract.cpp passes.
 //   SRWLOCK is non-recursive in exclusive mode; this class never re-enters its

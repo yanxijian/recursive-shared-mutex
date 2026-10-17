@@ -65,15 +65,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "mutual exclusion violated on $cxx" }
 
   contract-mingw:
-    # Known red: libstdc++ over winpthreads grants two exclusive owners under a
-    # try_lock storm (docs/platform-notes.md §3). Kept - and marked
-    # continue-on-error so it does not mask new failures - precisely because a
-    # silent defect is worse than a red job. The fixed cell is the next job:
-    # same toolchain, -DRSM_BACKEND_SRWLOCK, must be green.
-    name: contract / windows / mingw-ucrt64 (known red)
+    # MinGW's default backend is the native SRWLOCK one (the header picks it
+    # automatically), so this must pass.
+    name: contract / windows / mingw-ucrt64
     runs-on: windows-latest
     timeout-minutes: 20
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: msys2/setup-msys2@v2
@@ -90,11 +86,15 @@ jobs:
           ./backend_contract.exe --rounds 15 --iters 3000
           ./mutual_exclusion.exe --iters 20000
 
-  contract-mingw-srwlock:
-    # The supported configuration on MinGW: native SRWLOCK backend. Must pass.
-    name: contract / windows / mingw-ucrt64 + RSM_BACKEND_SRWLOCK
+  contract-mingw-std:
+    # Red by design: libstdc++ over winpthreads grants two exclusive owners under a
+    # try_lock storm (docs/platform-notes.md), and -DRSM_BACKEND_STD is how you ask
+    # for that backend. Kept so the defect stays visible - if the cell ever turns
+    # green, the toolchain fixed itself and it can go.
+    name: contract / windows / mingw-ucrt64 + RSM_BACKEND_STD (defect visible)
     runs-on: windows-latest
     timeout-minutes: 20
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - uses: msys2/setup-msys2@v2
@@ -106,11 +106,10 @@ jobs:
       - name: Compile + run contract tests
         shell: msys2 {0}
         run: |
-          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_SRWLOCK -Iinclude tests/backend_contract.cpp -o backend_contract.exe
-          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_SRWLOCK -Iinclude tests/mutual_exclusion.cpp   -o mutual_exclusion.exe
+          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_STD -Iinclude tests/backend_contract.cpp -o backend_contract.exe
+          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_STD -Iinclude tests/mutual_exclusion.cpp   -o mutual_exclusion.exe
           ./backend_contract.exe --rounds 15 --iters 3000
           ./mutual_exclusion.exe --iters 20000
-
   contract-unix:
     name: contract / ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -175,10 +174,31 @@ jobs:
           ctest --test-dir build --output-on-failure --timeout 180
 
   build-mingw:
-    # Default backend (libstdc++/winpthreads): known red, see the contract job
-    # above. Kept so the defect stays visible; the fixed cell is the next job,
-    # which uses the same toolchain with RSM_BACKEND_SRWLOCK.
-    name: suite / windows / mingw-ucrt64 (known red)
+    # MinGW's default backend is the native SRWLOCK one, so this must pass.
+    name: suite / windows / mingw-ucrt64
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+      - name: Configure, build, test
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
+
+  build-mingw-std:
+    # Red by design: same toolchain, std::shared_mutex over winpthreads.
+    name: suite / windows / mingw-ucrt64 + RSM_BACKEND_STD (defect visible)
     runs-on: windows-latest
     timeout-minutes: 30
     continue-on-error: true
@@ -196,34 +216,10 @@ jobs:
         shell: msys2 {0}
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_CXX_FLAGS=-DRSM_BACKEND_STD \
                 -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
           cmake --build build
           ctest --test-dir build --output-on-failure --timeout 180
-
-  build-mingw-srwlock:
-    # The fix: same toolchain, native SRWLOCK backend. This cell must be green.
-    name: suite / windows / mingw-ucrt64 + RSM_BACKEND_SRWLOCK
-    runs-on: windows-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - uses: msys2/setup-msys2@v2
-        with:
-          msystem: UCRT64
-          update: true
-          install: >-
-            mingw-w64-ucrt-x86_64-gcc
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-ninja
-      - name: Configure, build, test
-        shell: msys2 {0}
-        run: |
-          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
-                -DCMAKE_CXX_FLAGS=-DRSM_BACKEND_SRWLOCK \
-                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
-          cmake --build build
-          ctest --test-dir build --output-on-failure --timeout 180
-
   build-linux:
     name: suite / linux / ${{ matrix.name }}
     runs-on: ubuntu-latest
