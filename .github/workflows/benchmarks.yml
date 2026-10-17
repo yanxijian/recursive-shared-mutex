@@ -1,0 +1,164 @@
+# Benchmark automation: run the perf scenarios in CI, refresh the checked-in
+# numbers, and gate PRs on a regression.
+#
+# Design notes
+#  * Correctness is covered by ci.yml and platform-matrix.yml; this workflow is
+#    only about throughput.
+#  * Numbers from GitHub's shared runners drift a few percent between runs and
+#    change outright between hardware generations, so:
+#      - the image is pinned (windows-2022) to keep runs comparable;
+#      - every pair is measured -Repeats times and the median is reported;
+#      - the meaningful value is the speedup vs recursive_mutex measured in the
+#        same run, not absolute ops/s;
+#      - the gate only compares against a baseline CI itself produced. The files
+#        committed today were measured on a developer machine, so until this
+#        workflow has refreshed them once, the gate warns instead of failing.
+#  * "Update" opens a PR rather than pushing to main: a weekly bot commit with
+#    +-2% noise is worse than no bot at all.
+#  * PRs opened with GITHUB_TOKEN do not trigger other workflows (GitHub
+#    limitation), so the benchmark PR arrives without checks. That is fine - it
+#    only touches benchmarks/results/*.md.
+
+name: benchmarks
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Mondays, 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      toolchain:
+        description: Which toolchain(s) to measure
+        type: choice
+        options: [both, msvc, mingw]
+        default: both
+      repeats:
+        description: Runs per (scenario, impl) pair; the median is reported
+        type: string
+        default: "3"
+      seconds:
+        description: Duration of one run, in seconds
+        type: string
+        default: "3"
+      update_mode:
+        description: What to do with the refreshed results
+        type: choice
+        options: [pull-request, commit, none]
+        default: pull-request
+      regression_pct:
+        description: Fail when a speedup drops by more than this percentage (0 = do not gate)
+        type: string
+        default: "0"
+  pull_request:
+    paths:
+      - "include/**"
+      - "benchmarks/**"
+      - ".github/workflows/benchmarks.yml"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: benchmarks-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Scheduled / manual: measure, refresh benchmarks/results/*.md, open a PR.
+  # ---------------------------------------------------------------------------
+  refresh:
+    name: refresh / ${{ matrix.name }}
+    if: github.event_name != 'pull_request' && (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain)
+    runs-on: windows-2022
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: msvc, toolchain: msvc }
+          - { name: mingw, toolchain: mingw }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # create-pull-request wants history to diff against
+
+      - name: Set up MSVC
+        if: matrix.toolchain == 'msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Set up MinGW
+        if: matrix.toolchain == 'mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
+
+      - name: Measure
+        shell: pwsh
+        run: |
+          if ("${{ matrix.toolchain }}" -eq "mingw") {
+            $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
+          }
+          pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain ${{ matrix.toolchain }} `
+            -Seconds ${{ inputs.seconds || '3' }} -Repeats ${{ inputs.repeats || '3' }} `
+            -RegressionPct ${{ inputs.regression_pct || '0' }}
+
+      - name: Show what changed
+        shell: pwsh
+        run: git --no-pager diff --stat -- benchmarks/results
+
+      - name: Open a PR with the refreshed numbers
+        if: inputs.update_mode != 'commit' && inputs.update_mode != 'none'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: bench/refresh-${{ matrix.name }}
+          delete-branch: true
+          add-paths: benchmarks/results/*.md
+          commit-message: "bench: refresh ${{ matrix.name }} results"
+          title: "bench: refresh ${{ matrix.name }} results"
+          body: |
+            Automated refresh of the ${{ matrix.toolchain }} results file.
+
+            - Measured on a `windows-2022` GitHub runner, medians of ${{ inputs.repeats || '3' }} runs.
+            - Absolute numbers belong to that runner; compare the speedup column.
+            - Opened by `.github/workflows/benchmarks.yml`. It carries no checks:
+              PRs created with `GITHUB_TOKEN` do not trigger workflows (GitHub
+              limitation) - acceptable for a results-only change.
+
+  # ---------------------------------------------------------------------------
+  # PR gate: short run, compare against the committed baseline, fail on a real
+  # regression. Warns instead until the baseline came from CI itself.
+  # ---------------------------------------------------------------------------
+  gate:
+    name: gate / no regression
+    if: github.event_name == 'pull_request'
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Measure and compare
+        shell: pwsh
+        run: |
+          $baseline = "benchmarks/results/msvc.md"
+          $fromCi = Select-String -Path $baseline -Pattern "Runner: GitHub Actions" -Quiet
+          if ($fromCi) {
+            Write-Host "::notice::comparing against the committed CI baseline (25% threshold)"
+            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 2 -Repeats 3 `
+              -OutDir "$env:RUNNER_TEMP/bench" -Baseline $baseline -RegressionPct 25
+          }
+          else {
+            Write-Host "::warning::the committed baseline was measured outside CI; running without a gate. Dispatch this workflow once to seed it."
+            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 2 -Repeats 3 `
+              -OutDir "$env:RUNNER_TEMP/bench" -RegressionPct 0
+          }
+          if ($LASTEXITCODE -ne 0) { throw "benchmark gate failed" }
