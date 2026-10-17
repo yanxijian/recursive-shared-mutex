@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:7f3834df03d9 -->
+<!-- translated-from: README.md sha256:b24765cb794e -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -237,6 +237,7 @@ tests/                            # Catch2 测试 + 无框架回归测试
 examples/                         # 用法示例（含跨模块隐患复现）
 benchmarks/                       # 驱动、CI 自动化、已入库结果
 docs/                             # 设计、迁移、平台记录、路线图、验证
+verification/                     # soak 历史，每个已记录批次一行
 scripts/check_repo_rules.py       # AGENTS.md 承诺由 CI 执行的规则
 scripts/tests/                    # 规则检查器自身的测试
 cmake/                            # package config

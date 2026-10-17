@@ -178,8 +178,6 @@ jobs:
 
           with open("verdict.txt", "w", encoding="utf-8") as f:
               f.write(f"{verdict}\n{first}\n{last}\n{total_ops}\n{total_entries}\n")
-          if problems:
-              sys.exit(1)
           PY
 
       - name: Record the batch in the soak history
@@ -215,3 +213,12 @@ jobs:
           fi
           git commit -m "chore(soak): record batch ${GITHUB_RUN_ID}"
           git push
+
+      - name: Fail the run on a red verdict
+        if: ${{ always() }}
+        run: |
+          verdict=$(head -n 1 verdict.txt 2>/dev/null || echo red)
+          echo "batch verdict: $verdict"
+          if [ "$verdict" != "green" ]; then
+            exit 1
+          fi

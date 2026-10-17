@@ -230,8 +230,9 @@ the automation overwrite the desktop files.
   `include/**`. A pull request additionally runs a subset of the matrix; the
   exhaustive set runs on `main` and weekly. `soak.yml` runs nightly and on
   demand - the mutual-exclusion driver for a minute, plain and under TSan, plus
-  the model checker over four seeds - because three seconds is not a soak for a
-  concurrency primitive; nothing on the push path waits for it. `ci.yml` is
+  the model checker over four seeds, and a manual `soak-batch.yml` shards
+  multi-hour runs into `verification/soak-history.md` - because three seconds is
+  not a soak for a concurrency primitive; nothing on the push path waits for it. `ci.yml` is
   **not** a duplicate of `platform-matrix.yml`: it builds the way a consumer does
   - the default CMake generator and the default compiler of each OS - while the
   matrix pins the toolchain and uses Ninja. Both running on `main` is deliberate;

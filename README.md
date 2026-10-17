@@ -239,6 +239,7 @@ tests/                            # Catch2 tests + framework-free regression tes
 examples/                         # usage demos (incl. the cross-module hazard repro)
 benchmarks/                       # driver, CI automation, checked-in results
 docs/                             # design, migration, platform notes, roadmap, validation
+verification/                     # soak history, one row per recorded batch
 scripts/check_repo_rules.py       # the rules AGENTS.md promises CI enforces
 scripts/tests/                    # tests for the rules checker itself
 cmake/                            # package config
