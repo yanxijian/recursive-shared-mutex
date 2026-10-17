@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:d40bccb138d6 -->
+<!-- translated-from: README.md sha256:880648ef812e -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -229,13 +229,13 @@ benchmarks/                       # 驱动、CI 自动化、已入库结果
 docs/                             # 设计、迁移、平台记录、路线图
 scripts/check_repo_rules.py       # AGENTS.md 承诺由 CI 执行的规则
 cmake/                            # package config
-.github/                          # ci.yml、platform-matrix.yml、benchmarks.yml
+.github/                          # 工作流、issue/PR 模板、CONTRIBUTING / SECURITY / CODE_OF_CONDUCT
 AGENTS.md                         # 仓库规则，所有 agent 共用一份
 ```
 
 ## 参与贡献
 
-见 [CONTRIBUTING.md](CONTRIBUTING.md)。较大的设计改动请先开 issue。
+见 [CONTRIBUTING.md](.github/CONTRIBUTING.md)。较大的设计改动请先开 issue。
 
 **在用 AI agent 干活？** 仓库规则在 [AGENTS.md](AGENTS.md)——一份文件同时服务 Claude Code、Codex、
 Cursor、Copilot 以及其它工具，`CLAUDE.md`、`.cursor/rules/repo.mdc` 与
@@ -247,7 +247,7 @@ Cursor、Copilot 以及其它工具，`CLAUDE.md`、`.cursor/rules/repo.mdc` 与
 
 ## 安全
 
-见 [SECURITY.md](SECURITY.md)。
+见 [SECURITY.md](.github/SECURITY.md)。
 
 ## 许可
 
