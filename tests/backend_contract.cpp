@@ -1,4 +1,4 @@
-// Backend contract check for the mutex the library is built on.
+﻿// Backend contract check for the mutex the library is built on.
 //
 // With RSM_BACKEND_SRWLOCK this checks the SRWLOCK backend; otherwise it checks
 // std::shared_mutex. Build both on Windows/MinGW: the flag is what makes the

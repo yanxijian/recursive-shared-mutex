@@ -1,4 +1,4 @@
-// Shared interface between the "host" side and the "library" side of the
+﻿// Shared interface between the "host" side and the "library" side of the
 // cross-module hazard demo. Both sides include the recursive-shared-mutex
 // header, so each module gets its own copy of the inline code and therefore its
 // own thread_local slot table.

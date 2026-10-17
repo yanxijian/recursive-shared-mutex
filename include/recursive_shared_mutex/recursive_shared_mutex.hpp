@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <atomic>
 #include <cstddef>
@@ -75,6 +75,16 @@
                 "resumes on a different physical thread will strand its "                                              \
                 "shared slot and starve writers. Same-thread resume is "                                               \
                 "safe. See the THREAD-BINDING CONSTRAINT above.")
+#endif
+
+// EXCEPTIONS REQUIRED: misuse (wrong-thread unlock, shared->exclusive upgrade)
+//   and slot-table exhaustion are reported with std::system_error, so this
+//   header cannot compile with exceptions disabled. clang-cl disables them by
+//   default and MSVC project templates sometimes do too; fail with one clear
+//   message instead of "cannot use 'throw' with exceptions disabled" at every
+//   call site. Enable with /EHsc (MSVC, clang-cl) or -fexceptions (GCC, Clang).
+#if !defined(__cpp_exceptions) && !defined(__EXCEPTIONS) && !defined(_CPPUNWIND)
+#error "rsm::RecursiveSharedMutex requires C++ exceptions: pass /EHsc (MSVC, clang-cl) or -fexceptions"
 #endif
 
 // BACKEND SELECTION: define RSM_BACKEND_SRWLOCK to use the Win32 SRWLOCK

@@ -32,6 +32,14 @@ target_include_directories(recursive_shared_mutex
 
 target_compile_features(recursive_shared_mutex INTERFACE cxx_std_17)
 
+# The header reports misuse with std::system_error, so it needs C++ exceptions.
+# cl.exe enables them by default but clang-cl does not (/EHsc), and some MSVC
+# project templates disable them. Ask for them here so consumers - and this
+# repo's own clang-cl CI cell - do not have to know that.
+if(MSVC)
+	target_compile_options(recursive_shared_mutex INTERFACE /EHsc)
+endif()
+
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 

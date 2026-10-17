@@ -76,6 +76,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/run_bench.ps1 -To
 ## Requirements
 
 - C++17 compiler (MSVC, GCC, Clang)
+- **C++ exceptions enabled.** The header reports misuse (and slot-table
+  exhaustion) with `std::system_error`; with exceptions disabled it fails with a
+  single `#error` instead of a wall of "cannot use 'throw'" diagnostics. `cl.exe`
+  and `g++`/`clang++` enable them by default; **`clang-cl` does not** — pass
+  `/EHsc`. The CMake target adds `/EHsc` for MSVC-simulating compilers.
 - CMake ≥ 3.16 (for build/tests/install)
 
 ## Quick start

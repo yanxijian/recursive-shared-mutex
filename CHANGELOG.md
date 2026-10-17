@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Building with clang-cl failed: it disables C++ exceptions by default, and the header throws std::system_error by design. The header now emits one clear #error when exceptions are off, the CMake target asks for /EHsc on MSVC-simulating compilers, and README lists it as a requirement.
 - The CMake package reported version `0.1.0` while releases were at `v0.2.1`, so `find_package(recursive_shared_mutex 0.2 REQUIRED)` failed against an installed tree. The project version (and therefore `recursive_shared_mutexConfigVersion.cmake`) now tracks the released version.
-- README described the shared-recursion state as a `thread_local` intrusive list "released on thread exit", which stopped being true in v0.2.0 (dense POD slot table, no thread-exit release). Corrected, together with the performance summary: MSVC/clang are at 0.9×–1.2× of `std::recursive_mutex` on the exclusive path, MinGW-GCC at 0.07×–0.2×, with the toolchain-level cause spelled out.
+- README described the shared-recursion state as a `thread_local` intrusive list "released on thread exit", which stopped being true in v0.2.0 (dense POD slot table, no thread-exit release). Corrected, together with the performance summary: MSVC/clang are at 0.9Ã—â€“1.2Ã— of `std::recursive_mutex` on the exclusive path, MinGW-GCC at 0.07Ã—â€“0.2Ã—, with the toolchain-level cause spelled out.
 
 ### Changed
 
@@ -20,9 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `RSM_BACKEND_SRWLOCK`: opt-in backend policy that swaps `std::shared_mutex` for an 8-byte SRWLOCK wrapper (`rsm::detail::SrwLockBackend`, exposed as `RecursiveSharedMutex::backend_type`). It is what makes the component usable on MinGW-w64: exclusive `lock+unlock` 62.8 → 23.4 ns/pair, the exclusive-only benchmark ratio 0.067× → 1.52×, and `tests/backend_contract.cpp` goes from 245 violations to zero. No-op on MSVC (whose `std::shared_mutex` is already SRWLOCK); requires Windows Vista+; default behaviour is unchanged on every other platform.
+- `RSM_BACKEND_SRWLOCK`: opt-in backend policy that swaps `std::shared_mutex` for an 8-byte SRWLOCK wrapper (`rsm::detail::SrwLockBackend`, exposed as `RecursiveSharedMutex::backend_type`). It is what makes the component usable on MinGW-w64: exclusive `lock+unlock` 62.8 â†’ 23.4 ns/pair, the exclusive-only benchmark ratio 0.067Ã— â†’ 1.52Ã—, and `tests/backend_contract.cpp` goes from 245 violations to zero. No-op on MSVC (whose `std::shared_mutex` is already SRWLOCK); requires Windows Vista+; default behaviour is unchanged on every other platform.
 - `tests/backend_contract.cpp`: framework-free check that the mutex the library is actually built on honours mutual exclusion. It reports the backend (`std::shared_mutex` vs `SrwLockBackend`), so CI can prove the switch fixes the MinGW cell.
-- `tests/mutual_exclusion.cpp`: framework-free check that the library keeps writers mutually exclusive and readers out while a writer is inside — a property the existing suite did not assert.
+- `tests/mutual_exclusion.cpp`: framework-free check that the library keeps writers mutually exclusive and readers out while a writer is inside â€” a property the existing suite did not assert.
 - `.github/workflows/platform-matrix.yml`: cross-platform CI matrix (MSVC x64/x86 and x64+SRWLOCK, clang-cl, MinGW-UCRT64 default *and* with `RSM_BACKEND_SRWLOCK`, gcc-11/13, clang+libstdc++, clang+libc++, macOS arm64/x86_64, Linux arm64, alpine/musl, TSAN/ASAN+UBSAN, C++20 notice assertion, shared-library TLS domain). The backend contract test runs first in every cell; the two MinGW cells that use the unsound default backend are marked `continue-on-error` with the reason.
 - `examples/cross_module_hazard/`: a real DLL/.so reproducer for the per-module TLS table, showing that the same thread re-acquires the backend inside the second module (undefined behaviour that is silent on SRWLOCK and on reader-preferring rwlocks).
 - `docs/platform-notes.md`: measured three-toolchain data (MinGW-GCC 13.2 / MSVC 19.51 / clang 22.1), the backend contract results, the before/after of the SRWLOCK switch, and reproduction commands.
@@ -35,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Performance
 
 - The per-thread shared-slot table now keeps active slots dense in `[0, used)` with swap-with-last compaction on unlock-to-zero (and in the defensive destructor path). `findActiveSlot` scans only the active prefix, so threads holding no shared slots skip the scan entirely; the `depth == 0` slot-reuse branch became unreachable and was removed.
-- Measured on MinGW-w64 GCC 13.2 (UCRT): exclusive `lock()+unlock()` 365.6 → 108.6 ns/pair (**3.4×**), cold shared acquire/release churn 367.1 → 152.6 ns/pair (**2.4×**). Semantics verified unchanged by the full boundary suite (1051 checks) and the test matrix.
+- Measured on MinGW-w64 GCC 13.2 (UCRT): exclusive `lock()+unlock()` 365.6 â†’ 108.6 ns/pair (**3.4Ã—**), cold shared acquire/release churn 367.1 â†’ 152.6 ns/pair (**2.4Ã—**). Semantics verified unchanged by the full boundary suite (1051 checks) and the test matrix.
 - The dense-slot invariant and the POINTER-STABILITY red line (slot pointers are used across the blocking `mtx_.lock_shared()` call; safe only because a blocked call suspends the whole thread) are documented in the header. The rejected `release_shared_unchecked()` escape valve (unowned double-release UB hazard) is documented in `docs/migration.md`.
 
 ## [0.2.0] - 2026-10-16

@@ -1,4 +1,4 @@
-// DLL side. Contains its own copy of rsm::RecursiveSharedMutex's inline code,
+﻿// DLL side. Contains its own copy of rsm::RecursiveSharedMutex's inline code,
 // hence its own module-local thread_local slot table.
 #define RSM_HAZARD_BUILD_DLL 1
 #include <system_error>
