@@ -118,24 +118,42 @@ jobs:
           install: >-
             mingw-w64-ucrt-x86_64-gcc
 
-      - name: Build the probe against the defective backend
-        shell: pwsh
+      # Build and run in the msys2 shell, which is where g++ is on PATH. The
+      # verdict is written to files so the step below can decide, in pwsh, which
+      # way round the exit code should go.
+      - name: Build and run the probe against the defective backend
+        shell: msys2 {0}
         run: |
-          & C:\msys64\ucrt64\bin\g++.exe -O2 -std=c++17 -pthread -DRSM_BACKEND_STD -Iinclude `
-            tests/backend_contract.cpp -o backend_contract_std.exe
-          if (-not (Test-Path backend_contract_std.exe)) { throw "the probe did not build" }
+          set +e
+          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_STD -Iinclude tests/backend_contract.cpp -o backend_contract_std.exe
+          if [ $? -ne 0 ]; then echo build-failed > probe.status; exit 0; fi
+          ./backend_contract_std.exe --rounds 15 --iters 3000 > probe.log 2>&1
+          rc=$?
+          echo "$rc" > probe.status
+          exit 0
 
       - name: Expect the contract to be violated
         shell: pwsh
         run: |
-          $log = "probe.log"
-          & .\backend_contract_std.exe --rounds 15 --iters 3000 *> $log
-          $rc = $LASTEXITCODE
-          $tail = (Get-Content $log | Select-Object -Last 10) -join "`n"
+          if (-not (Test-Path probe.status)) { throw "the probe produced no verdict" }
+          $status = (Get-Content probe.status -Raw).Trim()
+          $tail = if (Test-Path probe.log) { (Get-Content probe.log | Select-Object -Last 10) -join "`n" } else { "(no output)" }
           Write-Host $tail
 
           $summary = $env:GITHUB_STEP_SUMMARY
-          if ($rc -ne 0) {
+
+          if ($status -eq "build-failed") {
+            @(
+              '### The probe does not build',
+              '',
+              'This is a real failure, not the expected one: `tests/backend_contract.cpp` no longer',
+              'compiles with `-DRSM_BACKEND_STD`.'
+            ) | Add-Content -Path $summary
+            Write-Host "::error::The probe does not build with -DRSM_BACKEND_STD."
+            exit 1
+          }
+
+          if ($status -ne "0") {
             @(
               '### Expected failure observed - nothing to do',
               '',
@@ -150,7 +168,7 @@ jobs:
               $tail,
               '```'
             ) | Add-Content -Path $summary
-            Write-Host "::notice::Contract violated as expected (exit $rc) - upstream defect still present."
+            Write-Host "::notice::Contract violated as expected (exit $status) - upstream defect still present."
             exit 0
           }
 
