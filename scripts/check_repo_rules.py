@@ -11,11 +11,7 @@ Run locally:
     python3 scripts/check_repo_rules.py --fix     # fix the mechanical ones
     python3 scripts/check_repo_rules.py --staged  # only git-staged files (pre-commit)
 
-Exit code 0 = clean, 1 = violations.
-
-Derived from the Cursor rules in D:\\Codes\\Volition\\.cursor\\rules, adapted to
-this repository: see AGENTS.md for which ones were imported, changed, or
-rejected, and why.
+Exit code 0 = clean, 1 = violations. See AGENTS.md for the rule text.
 """
 
 from __future__ import annotations
@@ -104,8 +100,6 @@ def rel(path: Path) -> str:
 
 # ---------------------------------------------------------------------------
 # R1 - hand-written C/C++ is UTF-8 with BOM and CRLF
-#      (imported from cpp-source-encoding.mdc; the repository already declared
-#      this in .clang-format but nothing enforced it)
 # ---------------------------------------------------------------------------
 def check_encoding(paths: list[Path], rep: Report, do_fix: bool) -> None:
     for path in paths:
@@ -136,7 +130,6 @@ def check_encoding(paths: list[Path], rep: Report, do_fix: bool) -> None:
 
 # ---------------------------------------------------------------------------
 # R2 - nothing wider than .clang-format's ColumnLimit
-#      (from cpp-column-limit.mdc, with this repository's 120 instead of 140)
 # ---------------------------------------------------------------------------
 def check_width(paths: list[Path], rep: Report) -> None:
     for path in paths:
@@ -148,7 +141,6 @@ def check_width(paths: list[Path], rep: Report) -> None:
 
 # ---------------------------------------------------------------------------
 # R3 - Windows libraries via CMake, never #pragma comment(lib)
-#      (imported verbatim from cmake-windows-libs.mdc)
 # ---------------------------------------------------------------------------
 PRAGMA_LINK = re.compile(r"#\s*pragma\s+comment\s*\(\s*(lib|linker)", re.IGNORECASE)
 
