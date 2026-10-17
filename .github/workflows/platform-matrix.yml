@@ -1,0 +1,318 @@
+# Cross-platform matrix for recursive-shared-mutex.
+#
+# This file is additive: copy it to .github/workflows/ and either run it next to
+# the existing ci.yml or replace ci.yml with it.
+#
+# Design rules
+#  1. `backend-contract` runs FIRST and needs no CMake/Catch2: it compiles two
+#     standalone .cpp files and runs them. A toolchain that violates mutual
+#     exclusion fails the whole run in ~30 s instead of in a confusing timeout.
+#  2. Every cell that can run the full suite does, but the sanitizer cells run
+#     the suites directly (not ctest) because the metrics tests are wall-clock
+#     based and flaky under sanitizers.
+#  3. Nothing here needs a secret or a self-hosted runner except the optional
+#     arm64 job (public preview runner).
+
+name: platform-matrix
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: "0 4 * * 1" # weekly: catch toolchain/image drift (this is how the
+                        # MinGW winpthreads defect would have been caught)
+
+concurrency:
+  group: matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CMAKE_BUILD_PARALLEL_LEVEL: 4
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Backend contract: does std::shared_mutex honour mutual exclusion here?
+  #    Catches: MinGW/libstdc++/winpthreads (2 owners under try_lock storms).
+  # ---------------------------------------------------------------------------
+  contract-windows:
+    name: contract / windows / ${{ matrix.name }}
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: msvc-x64, toolset: msvc }
+          - { name: clang-cl, toolset: clang-cl }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Compile + run contract tests
+        shell: pwsh
+        run: |
+          $cxx = if ("${{ matrix.toolset }}" -eq "clang-cl") { "clang-cl" } else { "cl" }
+          $defs = "/O2 /std:c++17 /EHsc /Iinclude"
+          & $cxx $defs.Split(' ') tests/backend_contract.cpp /Fe:backend_contract.exe
+          & $cxx $defs.Split(' ') tests/mutual_exclusion.cpp   /Fe:mutual_exclusion.exe
+          .\backend_contract.exe --rounds 15 --iters 3000
+          if ($LASTEXITCODE -ne 0) { throw "backend contract violated on $cxx" }
+          .\mutual_exclusion.exe --iters 20000
+          if ($LASTEXITCODE -ne 0) { throw "mutual exclusion violated on $cxx" }
+
+  contract-mingw:
+    # Known red: libstdc++ over winpthreads grants two exclusive owners under a
+    # try_lock storm (docs/platform-notes.md §3), so this cell is expected to
+    # fail until a native backend exists. It is kept - and marked
+    # continue-on-error so it does not mask new failures - precisely because a
+    # silent defect is worse than a red job. Flip to false once the backend
+    # policy (SRWLOCK on MinGW) lands.
+    name: contract / windows / mingw-ucrt64 (known red)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+      - name: Compile + run contract tests
+        shell: msys2 {0}
+        run: |
+          g++ -O2 -std=c++17 -pthread -Iinclude tests/backend_contract.cpp -o backend_contract.exe
+          g++ -O2 -std=c++17 -pthread -Iinclude tests/mutual_exclusion.cpp   -o mutual_exclusion.exe
+          ./backend_contract.exe --rounds 15 --iters 3000
+          ./mutual_exclusion.exe --iters 20000
+
+  contract-unix:
+    name: contract / ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: ubuntu-gcc,   os: ubuntu-latest, cxx: g++ }
+          - { name: ubuntu-clang, os: ubuntu-latest, cxx: clang++ }
+          - { name: macos-arm64,  os: macos-14,      cxx: clang++ } # Apple Silicon
+          - { name: macos-x64,    os: macos-13,      cxx: clang++ }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile + run contract tests
+        run: |
+          ${{ matrix.cxx }} -O2 -std=c++17 -pthread -Iinclude tests/backend_contract.cpp -o backend_contract
+          ${{ matrix.cxx }} -O2 -std=c++17 -pthread -Iinclude tests/mutual_exclusion.cpp   -o mutual_exclusion
+          ./backend_contract --rounds 15 --iters 3000
+          ./mutual_exclusion --iters 20000
+
+  # ---------------------------------------------------------------------------
+  # 2. Full suite (CMake + Catch2), one cell per compiler/stdlib combination.
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: suite / windows / ${{ matrix.name }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: msvc-x64-release, arch: x64, cfg: Release }
+          - { name: msvc-x64-debug,   arch: x64, cfg: Debug }
+          - { name: msvc-x86-release, arch: x86, cfg: Release }
+          - { name: clang-cl-x64,     arch: x64, cfg: Release, clang: true }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ matrix.arch }}
+      - name: Configure
+        shell: pwsh
+        run: |
+          $env:CXX = if ("${{ matrix.clang }}") { "clang-cl" } else { "cl" }
+          cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.arch }} `
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+      - name: Build + test
+        shell: pwsh
+        run: |
+          cmake --build build --config ${{ matrix.cfg }}
+          ctest --test-dir build -C ${{ matrix.cfg }} --output-on-failure --timeout 180
+
+  build-mingw:
+    # Same known-red backend: the full suite includes backend_contract, so this
+    # cell fails until the backend policy lands. The other 23 tests pass.
+    name: suite / windows / mingw-ucrt64 (known red)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+      - name: Configure, build, test
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
+
+  build-linux:
+    name: suite / linux / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: gcc-13, cxx: g++-13, apt: g++-13 }
+          - { name: gcc-11, cxx: g++-11, apt: g++-11 } # older libstdc++ shared_mutex paths
+          - { name: clang-libstdcxx, cxx: clang++-17, apt: "clang-17" }
+          - { name: clang-libcxx, cxx: clang++-17, apt: "clang-17 libc++-17-dev libc++abi-17-dev", stdlib: "-stdlib=libc++" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build ${{ matrix.apt }}
+      - name: Configure, build, test
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+                -DCMAKE_CXX_FLAGS="${{ matrix.stdlib }}" \
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
+
+  build-linux-arm64:
+    # Weak memory ordering. Keep, or drop if the preview runner label is not
+    # available for your repository.
+    name: suite / linux-arm64 / gcc
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
+      - name: Configure, build, test
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
+
+  build-macos:
+    name: suite / ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-14-arm64, os: macos-14 } # Apple libc++, arm64
+          - { name: macos-13-x64,   os: macos-13 } # Apple libc++, x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure, build, test
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
+
+  build-alpine-musl:
+    # musl has its own rwlock implementation; cheap to cover with a container.
+    name: suite / alpine-musl
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: alpine:3.20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: apk add --no-cache build-base cmake ninja git
+      - name: Configure, build, test
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
+
+  # ---------------------------------------------------------------------------
+  # 3. Sanitizers. Windows has no usable TSAN, so this lives on Linux.
+  #    Runs the suites directly: the metrics tests are wall-clock based.
+  # ---------------------------------------------------------------------------
+  sanitizers:
+    name: sanitizer / ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: tsan, sanitize: "thread" }
+          - { name: asan-ubsan, sanitize: "address,undefined" }
+    env:
+      TSAN_OPTIONS: "halt_on_error=1 second_deadlock_stack=1"
+      ASAN_OPTIONS: "detect_leaks=0:halt_on_error=1"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build g++
+      - name: Configure with ${{ matrix.sanitize }}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+                -DCMAKE_CXX_FLAGS="-fsanitize=${{ matrix.sanitize }} -fno-omit-frame-pointer -g" \
+                -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=${{ matrix.sanitize }}" \
+                -DRSM_BUILD_TESTS=ON
+      - name: Build
+        run: cmake --build build
+      - name: Run (metrics tests excluded on purpose)
+        run: |
+          ./build/tests/rsm_tests
+          ./build/tests/backend_contract --rounds 10 --iters 2000
+          ./build/tests/mutual_exclusion --iters 20000
+
+  # ---------------------------------------------------------------------------
+  # 4. Language-mode and module-boundary coverage.
+  # ---------------------------------------------------------------------------
+  cxx20-notice:
+    # The R1 compile-time notice must fire in C++20 mode and stay silent in C++17.
+    name: cxx20 / coroutine notice
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert the notice appears in C++20 and not in C++17
+        run: |
+          printf '#include <recursive_shared_mutex/recursive_shared_mutex.hpp>\nint main(){}\n' > notice.cpp
+          g++ -std=c++20 -Iinclude -fsyntax-only notice.cpp 2> c20.txt
+          g++ -std=c++17 -Iinclude -fsyntax-only notice.cpp 2> c17.txt
+          grep -q "is bound to OS threads" c20.txt || { echo "notice missing in C++20"; exit 1; }
+          if grep -q "is bound to OS threads" c17.txt; then echo "notice leaked into C++17"; exit 1; fi
+
+  shared-library:
+    # The document says a mutex's shared-lock sequence must stay inside one
+    # module's TLS domain. This job proves the hazard is real and that the
+    # library detects the split (cross-module unlock throws).
+    name: module-boundary / dlopen TLS domain
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build host + library and run the hazard demo
+        run: |
+          cd examples/cross_module_hazard
+          ./build_and_run.sh 2>&1 | tee out.txt
+          grep -q "separate TLS domain" out.txt
+          grep -q "EXE has no slot for that level" out.txt
