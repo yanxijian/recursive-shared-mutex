@@ -38,6 +38,18 @@ Before the metrics mean anything on a big machine, run it locally:
 powershell -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 3 -Repeats 3
 ```
 
+## How precise are these numbers?
+
+Not very, and the report says so: each one carries a `Run-to-run spread` line, the
+observed min..max across the repeats. Measured on a busy 32-core desktop, the
+median spread is around 40% and the balanced scenario has swung over 250% between
+runs of the same binary. Treat the speedups as order of magnitude - "an order of
+magnitude faster on read-heavy nested workloads", not "13.59x" - and use the
+`ci-*.md` files, which are produced on one fixed runner, for drift.
+
+`-Repeats` raises the confidence but not the machine's quietness: close
+everything else before measuring, or the numbers describe your browser.
+
 ## Scenarios
 
 | ID | Description |
