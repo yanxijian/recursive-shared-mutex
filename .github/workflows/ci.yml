@@ -45,6 +45,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DRSM_BUILD_TESTS=ON
           -DRSM_BUILD_EXAMPLES=ON
+          -DRSM_BUILD_STRESS=ON
 
       - name: Build
         run: cmake --build build --config Release

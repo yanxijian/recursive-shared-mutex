@@ -13,6 +13,9 @@
 // built on top of it, so it must be checked per toolchain.
 //
 // Self-contained: standard library only, no test framework, no CMake needed.
+// Four checks: two ownership properties under a try_lock storm, try_lock against
+// a steady holder, and the "refuse try_lock while this thread holds it shared"
+// promise that `lock()`'s upgrade detection depends on.
 // Build:  c++ -O2 -std=c++17 -pthread backend_contract.cpp -o backend_contract
 //         cl /O2 /std:c++17 /EHsc backend_contract.cpp
 // Run:    ./backend_contract [--threads N] [--iters N] [--rounds N]
@@ -86,7 +89,7 @@ namespace
 	// (1) Two threads must never hold the same mutex exclusively at the same time.
 	long long exclusiveVsExclusive(const Options& opt)
 	{
-		long long violations = 0;
+		std::atomic<long long> violations{0};
 		long long ops = 0;
 		for (int r = 0; r < opt.rounds; ++r)
 		{
@@ -111,7 +114,7 @@ namespace
 						}
 						if (inside.fetch_add(1, std::memory_order_seq_cst) != 0)
 						{
-							++violations;
+							violations.fetch_add(1, std::memory_order_relaxed);
 						}
 						burn();
 						inside.fetch_sub(1, std::memory_order_seq_cst);
@@ -127,14 +130,14 @@ namespace
 			}
 			ops += localOps.load();
 		}
-		std::printf("  [1] exclusive-vs-exclusive: ops=%lld violations=%lld\n", ops, violations);
-		return violations;
+		std::printf("  [1] exclusive-vs-exclusive: ops=%lld violations=%lld\n", ops, violations.load());
+		return violations.load();
 	}
 
 	// (2) A reader must never be inside while a writer is inside.
 	long long writerVsReader(const Options& opt)
 	{
-		long long violations = 0;
+		std::atomic<long long> violations{0};
 		long long ops = 0;
 		for (int r = 0; r < opt.rounds; ++r)
 		{
@@ -174,7 +177,7 @@ namespace
 							}
 							if (writers.load(std::memory_order_seq_cst) != 0)
 							{
-								++violations;
+								violations.fetch_add(1, std::memory_order_relaxed);
 							}
 							burn();
 							m.unlock_shared();
@@ -190,8 +193,8 @@ namespace
 			}
 			ops += localOps.load();
 		}
-		std::printf("  [2] reader-inside-while-writer-inside: ops=%lld violations=%lld\n", ops, violations);
-		return violations;
+		std::printf("  [2] reader-inside-while-writer-inside: ops=%lld violations=%lld\n", ops, violations.load());
+		return violations.load();
 	}
 
 	// (3) Sanity: try_lock must fail while another thread holds the lock.
@@ -214,6 +217,24 @@ namespace
 		m.unlock();
 		std::printf("  [3] try_lock against a steady holder: %s\n", lied ? "LIED (violation)" : "ok");
 		return !lied;
+	}
+
+	// (4) `lock()` reads a refused try_lock as "this might be an upgrade attempt",
+	// so the backend must refuse try_lock() while the calling thread already holds
+	// the mutex shared. A backend that granted it would let one thread hold the
+	// mutex both ways; the library's debug assertion would be the only thing left.
+	bool tryLockRefusesSameThreadShared()
+	{
+		Backend m;
+		m.lock_shared();
+		const bool granted = m.try_lock();
+		if (granted)
+		{
+			m.unlock();
+		}
+		m.unlock_shared();
+		std::printf("  [4] try_lock while the same thread holds it shared: %s\n", granted ? "GRANTED (violation)" : "refused, ok");
+		return !granted;
 	}
 
 	Options parse(int argc, char** argv)
@@ -253,7 +274,8 @@ int main(int argc, char** argv)
 	const long long v1 = exclusiveVsExclusive(opt);
 	const long long v2 = writerVsReader(opt);
 	const bool ok3 = tryLockRespectsHolder();
-	const long long violations = v1 + v2 + (ok3 ? 0 : 1);
+	const bool ok4 = tryLockRefusesSameThreadShared();
+	const long long violations = v1 + v2 + (ok3 ? 0 : 1) + (ok4 ? 0 : 1);
 
 	if (violations == 0)
 	{

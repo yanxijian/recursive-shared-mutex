@@ -2,7 +2,7 @@
 # Canonical copy for all projects. Sync to repo root as .clang-format before formatting.
 #
 # Encoding note: clang-format does NOT write UTF-8 BOM.
-# Handwritten C/C++ must still be UTF-8 BOM + CRLF — see cpp-source-encoding.mdc.
+# Handwritten C/C++ must still be UTF-8 BOM + CRLF — see AGENTS.md, rule R1.
 
 BasedOnStyle: Microsoft
 IndentWidth: 4
@@ -43,5 +43,5 @@ IncludeCategories:
   - Regex:           '^"'
     Priority:        3
 
-# clang-format 16+: emit CRLF (does not manage UTF-8 BOM — see cpp-source-encoding.mdc)
+# clang-format 16+: emit CRLF (does not manage UTF-8 BOM — see AGENTS.md, rule R1)
 LineEnding: CRLF

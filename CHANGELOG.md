@@ -8,8 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 - `scripts/check_repo_rules.py --fix` no longer strips the UTF-8 BOM while normalising line endings. The repair branch decoded with `utf-8-sig` (which eats the BOM) and wrote a BOM back only for files that did not already have one, so a file that had a BOM *and* mixed line endings came out BOM-less: `--fix` was not idempotent, its own output failed the check it had just run (a second run would put the BOM back), and a commit made in between landed a source file MSVC parses in the system code page - the reason R1 exists. The BOM is now written unconditionally, so one run repairs and the second is a no-op.
+- `tests/backend_contract.cpp` now checks the second promise `lock()` rests on - a backend must refuse `try_lock()` while the calling thread already holds the mutex shared - and its violation counters are atomic. They were plain `long long` incremented from several threads, so the run that mattered (a backend that had already broken exclusion) raced on its own evidence.
+- The exclusive slow path's third branch - a thread that holds a shared lock elsewhere and contends for a mutex a writer owns - now has a test (`T13`), and `ci.yml` builds and runs `tests/stress_concurrent.cpp`, which no workflow had ever compiled.
+- Documentation pointers that outlived the move to `hygiene.yml` are corrected (`AGENTS.md`, `.githooks/pre-commit`), `.clang-format` no longer cites a file from another repository, the v0.3.1 entries stop contradicting each other about batch-file line endings, and `[v0.3.1]` has its comparison link.
 - Release notes use a collapsible `<details>` block for the Chinese section, not a `#简体中文` jump link: GitHub renders release bodies without heading ids, so the link had no target. Verified against the rendered HTML (headings have no `id`; `<details>` passes the sanitiser).
 - `AGENTS.md` documents the release procedure: the five places a version lives, the annotated tag, and the bilingual GitHub Release body (English, then `## 简体中文`, title `english · 中文`). All five existing releases were brought up to that shape, and two older bodies were repaired (v0.3.0 carried cp1252 corruption, v0.1.0 carried a leaked link-reference block).
+
 ## [v0.3.1] - 2026-10-17
 
 ### Changed
@@ -26,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repaired cp1252 double-encoding in `docs/platform-notes.md` and `CHANGELOG.md` (`Ã—` was `×`, `â€“` was `–`, `â‰ˆ` was `≈`).
 - `.github/SECURITY.md` listed only 0.1.x as supported; it now lists 0.3.x.
 - Batch files moved onto the same rule as C/C++ in `.gitattributes`: CRLF in the object store and on checkout (`-text -eol`), instead of LF-in-store / CRLF-on-checkout. One mechanism for "this file must be CRLF" instead of two, and an accidental LF flip is now a visible diff rather than something git normalises away.
-- Line endings now follow a declared standard instead of a hand-maintained list: new `.gitattributes` keeps C/C++ as UTF-8 BOM + CRLF and marks it `-text` (git never converts those bytes), stores `.bat`/`.cmd` as LF and checks them out as CRLF, and normalises everything else to LF (`* text=auto eol=lf`), matching `.editorconfig`. The nine remaining CRLF build/tooling files were converted; R7 now verifies the working tree against `.gitattributes` and verifies that `.gitattributes` still declares the standard.
+- Line endings now follow a declared standard instead of a hand-maintained list: the new `.gitattributes` keeps C/C++ as UTF-8 BOM + CRLF and marks it `-text` (git never converts those bytes), gives `.bat`/`.cmd` the same CRLF-in-store-and-on-checkout rule, and normalises everything else to LF (`* text=auto eol=lf`), matching `.editorconfig`. The nine remaining CRLF build/tooling files were converted; R7 now verifies the working tree against `.gitattributes` and verifies that `.gitattributes` still declares the standard.
 - All Markdown converted to LF, which is what `.editorconfig` already declared as its default: the 8 documents that were CRLF (`CHANGELOG`, `CONTRIBUTING`, `SECURITY`, `CODE_OF_CONDUCT`, `docs/migration.md`, the issue/PR templates) and the 2 that were mixed (`README.md`, `docs/platform-notes.md`) are now plain LF. Content is unchanged - `git diff --ignore-cr-at-eol` is empty - and R7's `EOL_POLICY` no longer lists any markdown file, so new docs default to LF and a flip still fails the build.
 - The two `RSM_BACKEND_STD` CI cells that were red on every push are replaced by one weekly probe, `expected-fail / mingw winpthreads (red = upstream fixed)`: it asserts the winpthreads contract is *still* violated, so it is green while the defect exists and turns red the day upstream fixes it. Push and PR pages no longer carry a permanently red cell, and the suite cell that failed on the same root cause is gone.
 - New repository rule R7, enforced by `scripts/check_repo_rules.py`: a text file keeps the line endings it was committed with (LF by default; the CRLF and genuinely mixed files are listed in `EOL_POLICY`). A whole-file flip - which neither the compiler, clang-format nor git notices - now fails CI instead of silently turning a 194-line document into a 392-line diff.
@@ -114,7 +118,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI (Windows / Ubuntu / macOS)
 - MIT license and standard community health files
 
-[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.1...HEAD
+[v0.3.1]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.1...v0.3.0
 [v0.2.1]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/yanxijian/recursive-shared-mutex/releases/tag/v0.2.0

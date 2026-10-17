@@ -26,7 +26,7 @@ int main()
 	});
 
 	std::vector<std::thread> readers;
-	readers.reserve(static_cast<size_t>(kReaders));
+	readers.reserve(static_cast<std::size_t>(kReaders));
 	for (int r = 0; r < kReaders; ++r)
 	{
 		readers.emplace_back([&]() {

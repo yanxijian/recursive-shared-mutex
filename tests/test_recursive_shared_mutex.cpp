@@ -428,3 +428,46 @@ TEST_CASE("try_lock_shared acquire failure does not strand the shared slot", "[e
 	mtx.lock_shared();
 	mtx.unlock_shared();
 }
+
+TEST_CASE("exclusive lock blocks behind a foreign writer while a shared lock is held elsewhere", "[concurrent][T13]")
+{
+	// Exercises the exclusive slow path's third branch: this thread holds a shared
+	// lock on ANOTHER mutex (so its slot table is non-empty), try_lock() on the
+	// contended mutex is refused, the upgrade scan finds no slot for it, and the
+	// call must then block in the backend - not throw, not return early.
+	RecursiveSharedMutex held_shared;
+	RecursiveSharedMutex contended;
+	std::atomic<bool> holder_ready{false};
+	std::atomic<bool> allowed_release{false};
+	std::atomic<bool> holder_released{false};
+
+	held_shared.lock_shared(); // the calling thread's slot table is non-empty from here
+
+	std::thread holder([&]() {
+		contended.lock();
+		holder_ready.store(true, std::memory_order_release);
+		while (!allowed_release.load(std::memory_order_acquire))
+		{
+			std::this_thread::yield();
+		}
+		holder_released.store(true, std::memory_order_release);
+		contended.unlock();
+	});
+
+	while (!holder_ready.load(std::memory_order_acquire))
+	{
+		std::this_thread::yield();
+	}
+	allowed_release.store(true, std::memory_order_release);
+
+	contended.lock(); // must block until the holder releases; the release is sequenced before
+	REQUIRE(holder_released.load(std::memory_order_acquire));
+	contended.unlock();
+	held_shared.unlock_shared();
+
+	holder.join();
+
+	// Nothing is stranded: both mutexes are usable again.
+	REQUIRE(contended.try_lock());
+	contended.unlock();
+}

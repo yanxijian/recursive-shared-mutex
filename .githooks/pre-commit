@@ -5,7 +5,7 @@
 #   git config core.hooksPath .githooks
 #
 # This is a convenience, not the guarantee - the same checker runs in CI
-# (.github/workflows/ci.yml, job "repo-rules"), which is what makes the rules
+# (.github/workflows/hygiene.yml, job "repo-rules"), which is what makes the rules
 # effective for every agent regardless of whether anyone installed hooks.
 
 set -e
