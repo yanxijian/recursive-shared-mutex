@@ -137,3 +137,56 @@ the TLS/emutls cost of the slot table (`sizeof(RecursiveSharedMutex)` is 24 B on
 both backends). Removing that needs the "instance holds nothing but the backend"
 refactor — measured at ≈40 ns total on the std backend and ≈4 ns with SRWLOCK in
 a prototype, i.e. it is the next 3× on that platform, not this one.
+
+## 7. Tried and rejected (with numbers)
+
+Two further optimizations were prototyped and measured before being dropped.
+They are recorded so nobody repeats the work, and because the negative results
+say something about where the cost actually is.
+
+### TLS-only state (the instance holds nothing but the backend)
+
+Move `owner_` / `exclusive_count_` / `under_exclusive_` into the slot table, so
+the object is 8 bytes and no thread id is ever read. Same 24 tests, all passing
+on MSVC, clang and MinGW + SRWLOCK:
+
+| | current (hybrid) | TLS-only |
+|---|---:|---:|
+| MinGW + SRWLOCK: exclusive | 23.4 ns | 27.5 ns |
+| MinGW + SRWLOCK: 2× nested exclusive | 32.9 ns | **52.0 ns** |
+| MinGW + SRWLOCK: shared | 35.1 ns | **15.7 ns** |
+| MinGW + SRWLOCK: 2× nested shared | 66.1 ns | **28.6 ns** |
+| MSVC: exclusive / shared | 5.8 / 7.2 ns | 5.9 / 6.1 ns |
+| `sizeof` | 24 B | **8 B** |
+
+Why it loses on MinGW: the current design keeps the *recursive-exclusive* fast
+path completely off TLS (it is two instance-side atomics), whereas a TLS-only
+design pays a slot lookup on every `lock()` **and** every `unlock()`. Since the
+exclusive path is the one that MinGW needs help with, the refactor trades the
+platform in question for the ones that are already fine. Rejected.
+
+### One-entry slot hint + a single TLS fetch per operation
+
+`findActiveSlot()` fetched the thread-local table twice, and the shared paths
+fetched it three times per operation; a validated one-entry hint plus one fetch
+per call site should have removed that. Measured on MinGW:
+
+| | before | after |
+|---|---:|---:|
+| exclusive `lock+unlock` | 62.8 ns | 61.7 ns |
+| shared `lock_shared+unlock_shared` | 76.4 ns | 74.4 ns |
+| exclusive, `RSM_BACKEND_SRWLOCK` | 23.4 ns | 23.2 ns |
+| shared, `RSM_BACKEND_SRWLOCK` | 35.1 ns | 36.1 ns |
+
+All inside noise. Conclusion: the per-operation thread-local fetch is **not** the
+cost centre on this toolchain (a `thread_local` int write measures ~0.4 ns), so
+the extra table state was not kept.
+
+### What that leaves
+
+With `RSM_BACKEND_SRWLOCK`, the wrapper costs ~20 ns per pair over the raw
+SRWLOCK (23.2 vs 3.4). It is spread across `std::this_thread::get_id()`
+(winpthreads `pthread_self`), two relaxed atomics on `owner_`, the slot
+bookkeeping and the backend call — no single micro-change moved it. The next
+step should be a profiler run on the target toolchain, not more guessing;
+`benchmarks/` currently cannot separate those contributions.
