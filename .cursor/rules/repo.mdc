@@ -21,3 +21,7 @@ reasoning is in AGENTS.md.
   (`[thread.sharedmutex]`); `try_*` members must not throw on the acquire path.
 - Nothing may hold a pointer into the per-thread slot table across operations or
   across threads.
+- A translated document stays linked: both files keep the language switcher, and
+  `<!-- translated-from: ... sha256:... -->` records the English revision it came
+  from. `scripts/check_repo_rules.py` prints `STALE <file>` when the English side
+  moved on.
