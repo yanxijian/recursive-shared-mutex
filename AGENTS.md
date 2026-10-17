@@ -121,7 +121,33 @@ against this table, and verifies that `.gitattributes` still declares it.
   effect of an edit.
 
 
-### R8 - Think before making `try_*` throw **[review]**
+### R8 - A translated document stays linked and stays honest **[CI]**
+
+Eight documents have a Simplified Chinese version next to them
+(`README.zh-CN.md`, `docs/roadmap.zh-CN.md`, ...). English stays the default; the
+translation is a companion, never a replacement.
+
+- Both files carry a language switcher directly under the title:
+  `**English** · [简体中文](README.zh-CN.md)` on one side,
+  `[English](README.md) · **简体中文**` on the other. The checker verifies the links.
+- Each translation records the revision it came from as a content hash:
+  `<!-- translated-from: README.md sha256:... -->`. A content hash, not a commit
+  id, so a rebase does not invalidate every translation.
+- When the English file changes, the checker prints `STALE <file>: ...` and stays
+  green. That is deliberate: translating is real work and must not block a merge,
+  but it must not go unnoticed either. Re-read the diff, update the translation,
+  then update the hash.
+- The translated set is `TRANSLATED_DOCS` in `scripts/check_repo_rules.py`. Adding
+  or removing a translation means editing that tuple - the point is that the set
+  cannot silently lose an entry.
+
+Deliberately **not** translated, and why: `CHANGELOG.md` (history; would need
+re-translating on every release), `LICENSE` (legal text), `AGENTS.md` and its
+pointers (two copies invite an agent to follow the stale one),
+`benchmarks/results/*.md` (generated), and the issue/PR templates (they shape
+contributor reports, which are triaged in English).
+
+### R9 - Think before making `try_*` throw **[review]**
 
 `try_lock`, `try_lock_shared`, `unlock` and `unlock_shared` are `Lockable` /
 `SharedLockable` members: they must not throw on the "could not acquire" path.
@@ -129,7 +155,7 @@ Exhausting the per-thread slot table makes `lock_shared()` throw
 `resource_unavailable_try_again` while `try_lock_shared()` returns `false` - keep
 that asymmetry, it is deliberate and tested by `tests/backend_contract.cpp`.
 
-### R9 - Never re-enter the backend **[review]**
+### R10 - Never re-enter the backend **[review]**
 
 Any change that lets the *same thread* call the underlying `std::shared_mutex`
 twice is undefined behaviour per `[thread.sharedmutex]`. Recursion is intercepted
@@ -137,7 +163,7 @@ in `owner_` / `exclusive_count_` / `under_exclusive_` before the backend is
 touched. If you are adding a fast path, prove it cannot reach `mtx_.lock()` when
 `owner_ == this_thread::get_id()`.
 
-### R10 - Parameter passing **[review]**
+### R11 - Parameter passing **[review]**
 
 Defaults for new and touched APIs; not a mandate to rewrite stable signatures.
 
@@ -151,13 +177,13 @@ Defaults for new and touched APIs; not a mandate to rewrite stable signatures.
 Review priority when asked to review: **correctness > lifetime > threading >
 style**. List what you deliberately left alone and why.
 
-### R11 - Do not store references to TLS state **[review]**
+### R12 - Do not store references to TLS state **[review]**
 
 The slot table is `thread_local`. A `SharedDepthSlot*` must not outlive the
 mutex operation that fetched it, must not be cached in a member, and must not be
 handed to another thread.
 
-### R12 - Benchmark numbers carry their machine **[review]**
+### R13 - Benchmark numbers carry their machine **[review]**
 
 `benchmarks/results/*.md` are hand-measured on a desktop;
 `benchmarks/results/ci-*.md` come from the 4-core CI runner and are only for

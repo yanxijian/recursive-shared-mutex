@@ -1,5 +1,7 @@
 # Migration guide: `recursive_mutex` → `rsm::RecursiveSharedMutex`
 
+**English** · [简体中文](migration.zh-CN.md)
+
 ## Goal
 
 Introduce reader/writer locking without immediately flattening every nested call that previously relied on `std::recursive_mutex`.

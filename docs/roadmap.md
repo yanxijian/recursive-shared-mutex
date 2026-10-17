@@ -1,5 +1,7 @@
 # Roadmap
 
+**English** · [简体中文](roadmap.zh-CN.md)
+
 RecursiveSharedMutex is a **transition component**: its purpose is to carry a
 codebase from `std::recursive_mutex` to reader/writer locking until the
 codebase can be de-recursivized. This roadmap covers the remaining lifecycle.
