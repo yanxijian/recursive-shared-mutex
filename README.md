@@ -238,7 +238,7 @@ include/recursive_shared_mutex/   # public headers
 tests/                            # Catch2 tests + framework-free regression tests
 examples/                         # usage demos (incl. the cross-module hazard repro)
 benchmarks/                       # driver, CI automation, checked-in results
-docs/                             # design, migration, platform notes, roadmap
+docs/                             # design, migration, platform notes, roadmap, validation
 scripts/check_repo_rules.py       # the rules AGENTS.md promises CI enforces
 scripts/tests/                    # tests for the rules checker itself
 cmake/                            # package config

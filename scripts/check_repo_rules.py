@@ -273,6 +273,7 @@ TRANSLATED_DOCS = (
     "docs/migration.md",
     "docs/platform-notes.md",
     "docs/roadmap.md",
+    "docs/validation.md",
 )
 
 TRANSLATION_MARKER = "translated-from:"

@@ -1,0 +1,197 @@
+# Long-run validation batch, manual only.
+#
+# The nightly soak samples four seeds and costs minutes; this workflow is for the
+# multi-hour batches the exit criteria in docs/validation.md are written against.
+# It shards the model checker across runners, sums what each shard reported, and
+# (optionally) appends one row to verification/soak-history.md - only that file,
+# and only when the batch is meant to be recorded.
+#
+# Size it from the ledger: ops_target / (ops_per_second * shards * 3600) gives the
+# minutes per shard. The defaults are a calibration batch, not a certification run.
+
+name: soak batch
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Parallel shards (1-8)"
+        default: "4"
+      minutes:
+        description: "Wall-clock minutes per shard (<= 300; the job limit is 6 h)"
+        default: "120"
+      seeds_per_shard:
+        description: "Seeds per shard; each gets minutes*60/seeds_per_shard seconds"
+        default: "8"
+      threads:
+        description: "Threads per shard (8 oversubscribes a 4-vCPU runner, which adds preemption)"
+        default: "8"
+      seed_base:
+        description: "First seed; shard s starts at seed_base + s*seeds_per_shard"
+        default: "1000"
+      record:
+        description: "Append the batch to verification/soak-history.md and commit it"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: soak-batch
+  cancel-in-progress: false
+
+jobs:
+  shard:
+    name: shard ${{ matrix.shard }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    if: ${{ matrix.shard < fromJSON(github.event.inputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: g++ -O2 -std=c++17 -pthread -Iinclude tests/model_check.cpp -o model_check
+
+      - name: Run the shard
+        env:
+          SHARD: ${{ matrix.shard }}
+          MINUTES: ${{ inputs.minutes }}
+          SEEDS: ${{ inputs.seeds_per_shard }}
+          THREADS: ${{ inputs.threads }}
+          SEED_BASE: ${{ inputs.seed_base }}
+        run: |
+          set -o pipefail
+          if [ "$MINUTES" -lt 1 ] || [ "$SEEDS" -lt 1 ] || [ "$THREADS" -lt 1 ]; then
+            echo "bad inputs: minutes=$MINUTES seeds=$SEEDS threads=$THREADS"
+            exit 2
+          fi
+          per=$(( MINUTES * 60 / SEEDS ))
+          if [ "$per" -lt 60 ]; then
+            echo "per-seed duration would be ${per}s; raise minutes or lower seeds_per_shard"
+            exit 2
+          fi
+          first=$(( SEED_BASE + SHARD * SEEDS ))
+          echo "shard=$SHARD per_seed=${per}s first_seed=$first" | tee out.txt
+          for i in $(seq 0 $(( SEEDS - 1 ))); do
+            seed=$(( first + i ))
+            echo "=== seed $seed ===" | tee -a out.txt
+            ./model_check --seed "$seed" --ops 2000000 --threads "$THREADS" --seconds "$per" 2>&1 | tee -a out.txt
+          done
+
+      - name: Upload the shard log
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.shard }}
+          path: out.txt
+          retention-days: 90
+
+  report:
+    name: report
+    needs: shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download the shard logs
+        uses: actions/download-artifact@v4
+        with:
+          path: shards
+
+      - name: Aggregate the batch
+        env:
+          SHARDS: ${{ inputs.shards }}
+          MINUTES: ${{ inputs.minutes }}
+          SEEDS: ${{ inputs.seeds_per_shard }}
+          THREADS: ${{ inputs.threads }}
+          SEED_BASE: ${{ inputs.seed_base }}
+          SHARD_RESULT: ${{ needs.shard.result }}
+        run: |
+          python3 - <<'PY'
+          import glob, os, re, sys
+
+          shards = int(os.environ["SHARDS"])
+          seeds = int(os.environ["SEEDS"])
+          first = int(os.environ["SEED_BASE"])
+          last = first + shards * seeds - 1
+          threads = os.environ["THREADS"]
+          minutes = os.environ["MINUTES"]
+
+          total_ops = total_entries = 0
+          runs = 0
+          problems = []
+          for path in sorted(glob.glob("shards/shard-*/out.txt")):
+              text = open(path, encoding="utf-8", errors="replace").read()
+              for m in re.finditer(
+                  r"phase 2: (\d+) threads x (\d+)s, ops=(\d+) entries=(\d+) exits=(\d+) inside=(\d+) "
+                  r"overlaps=(\d+) readerWithWriter=(\d+) stranded=(\w+)", text):
+                  t, secs, ops, entries, exits, inside, overlaps, rww, stranded = m.groups()
+                  runs += 1
+                  total_ops += int(ops)
+                  total_entries += int(entries)
+                  if int(overlaps) or int(rww) or stranded != "no" or int(inside) != 0 or exits != entries:
+                      problems.append(f"{path}: overlaps={overlaps} rww={rww} stranded={stranded} inside={inside}")
+              if "VERDICT: model holds" not in text:
+                  problems.append(f"{path}: no verdict")
+          if len(glob.glob("shards/shard-*/out.txt")) != shards:
+              problems.append(f"expected {shards} shard logs, found {len(glob.glob('shards/shard-*/out.txt'))}")
+          if runs != shards * seeds:
+              problems.append(f"expected {shards * seeds} runs, found {runs}")
+          if os.environ["SHARD_RESULT"] != "success":
+              problems.append(f"shard job result: {os.environ['SHARD_RESULT']}")
+
+          verdict = "green" if not problems else "red"
+          print(f"shards={shards} minutes={minutes} threads={threads} seeds={first}-{last}")
+          print(f"runs={runs} ops={total_ops} entries={total_entries} verdict={verdict}")
+          for p in problems:
+              print("  " + p)
+
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
+              f.write(f"## soak batch {os.environ['GITHUB_RUN_ID']}\n\n")
+              f.write(f"- shards: {shards}, minutes/shard: {minutes}, threads: {threads}, seeds/shard: {seeds}\n")
+              f.write(f"- seeds: {first}-{last}\n")
+              f.write(f"- ops: {total_ops}, exclusive entries: {total_entries}\n")
+              f.write(f"- verdict: **{verdict}**\n")
+              for p in problems:
+                  f.write(f"- {p}\n")
+
+          with open("verdict.txt", "w", encoding="utf-8") as f:
+              f.write(f"{verdict}\n{first}\n{last}\n{total_ops}\n{total_entries}\n")
+          if problems:
+              sys.exit(1)
+          PY
+
+      - name: Record the batch in the soak history
+        if: ${{ inputs.record == 'true' }}
+        run: |
+          python3 - <<'PY'
+          import datetime, os, pathlib
+
+          verdict, first, last, ops, entries = pathlib.Path("verdict.txt").read_text(encoding="utf-8").split()
+          shards = os.environ["SHARDS"]
+          minutes = os.environ["MINUTES"]
+          threads = os.environ["THREADS"]
+          row = (
+              f"| {datetime.date.today().isoformat()} | {os.environ['GITHUB_RUN_ID']} | linux | "
+              f"{shards} | {minutes} | {threads} | {first}-{last} | {ops} | {entries} | {verdict} |\n"
+          )
+          path = pathlib.Path("verification/soak-history.md")
+          with path.open("a", encoding="utf-8", newline="\n") as f:
+              f.write(row)
+          print(row.strip())
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add verification/soak-history.md
+          changed=$(git diff --cached --name-only)
+          if [ "$changed" != "verification/soak-history.md" ]; then
+            echo "refusing to commit unexpected paths: $changed"
+            exit 1
+          fi
+          git commit -m "chore(soak): record batch ${GITHUB_RUN_ID}"
+          git push
