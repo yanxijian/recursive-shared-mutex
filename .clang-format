@@ -8,7 +8,7 @@ BasedOnStyle: Microsoft
 IndentWidth: 4
 TabWidth: 4
 UseTab: ForIndentation
-ColumnLimit: 120
+ColumnLimit: 140
 PointerAlignment: Left
 ReferenceAlignment: Left
 NamespaceIndentation: All

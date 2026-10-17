@@ -277,8 +277,7 @@ int main(int argc, char** argv)
 
 	std::printf("rsm::RecursiveSharedMutex mutual-exclusion test\n  toolchain: %s\n", toolchain().c_str());
 	std::printf("  threads=%d %s\n", opt.threads,
-	            opt.seconds > 0 ? ("seconds=" + std::to_string(opt.seconds)).c_str()
-	                            : ("iters=" + std::to_string(opt.iters)).c_str());
+	            opt.seconds > 0 ? ("seconds=" + std::to_string(opt.seconds)).c_str() : ("iters=" + std::to_string(opt.iters)).c_str());
 
 	std::vector<std::thread> ts;
 	ts.reserve(static_cast<std::size_t>(opt.threads));
@@ -324,8 +323,7 @@ int main(int argc, char** argv)
 	std::printf("  spurious errors     : %lld\n", c.spuriousErrors.load());
 	std::printf("  lock left held      : %s\n", stranded ? "YES" : "no");
 
-	const long long failures =
-	    c.exclusiveOverlaps.load() + c.readerWithWriter.load() + c.spuriousErrors.load() + (stranded ? 1 : 0);
+	const long long failures = c.exclusiveOverlaps.load() + c.readerWithWriter.load() + c.spuriousErrors.load() + (stranded ? 1 : 0);
 
 	if (c.exclusiveWins.load() == 0 && c.sharedEntries.load() > 0)
 	{

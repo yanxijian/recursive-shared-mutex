@@ -70,8 +70,7 @@ int main()
 		std::printf("  dll_unlock_shared      -> %s%s\n", code(err).c_str(),
 		            err == 0 ? "  (single shared table - NOT expected)" : "  <- separate TLS domain");
 	}
-	std::printf("  writer can enter?       -> %s (expected NO, the EXE still holds)\n",
-	            writerCanEnter(m) ? "YES" : "no");
+	std::printf("  writer can enter?       -> %s (expected NO, the EXE still holds)\n", writerCanEnter(m) ? "YES" : "no");
 	m.unlock_shared();
 
 	// ---------------- step 2 ----------------
@@ -86,8 +85,7 @@ int main()
 	std::printf("\nstep 3: release the EXE level, then look again\n");
 	const int first = exeUnlockShared(m);
 	std::printf("  EXE unlock_shared #1   -> %s\n", code(first).c_str());
-	std::printf("  writer can enter?       -> %s (expected NO: the DLL's hold is still there)\n",
-	            writerCanEnter(m) ? "YES" : "no");
+	std::printf("  writer can enter?       -> %s (expected NO: the DLL's hold is still there)\n", writerCanEnter(m) ? "YES" : "no");
 
 	const int second = exeUnlockShared(m);
 	std::printf("  EXE unlock_shared #2   -> %s%s\n", code(second).c_str(),

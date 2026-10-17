@@ -95,8 +95,7 @@ namespace
 	}
 
 	template <class LockFn, class UnlockFn>
-	std::uint64_t nestedReadHeld(const std::vector<std::uint32_t>& data, std::size_t index, LockFn lockFn,
-	                             UnlockFn unlockFn)
+	std::uint64_t nestedReadHeld(const std::vector<std::uint32_t>& data, std::size_t index, LockFn lockFn, UnlockFn unlockFn)
 	{
 		const std::size_t i0 = index % data.size();
 		std::uint64_t acc = data[i0];
@@ -117,8 +116,7 @@ namespace
 	}
 
 	template <class LockFn, class UnlockFn>
-	void nestedWriteHeld(std::vector<std::uint32_t>& data, std::size_t index, std::uint32_t value, LockFn lockFn,
-	                     UnlockFn unlockFn)
+	void nestedWriteHeld(std::vector<std::uint32_t>& data, std::size_t index, std::uint32_t value, LockFn lockFn, UnlockFn unlockFn)
 	{
 		const std::size_t i0 = index % data.size();
 		data[i0] = value;
@@ -138,8 +136,8 @@ namespace
 	}
 
 	template <class Mutex, bool SharedReads>
-	void runRw(Mutex& mtx, std::vector<std::uint32_t>& data, int readers, int writers, double seconds,
-	           std::uint64_t& readOps, std::uint64_t& writeOps)
+	void runRw(Mutex& mtx, std::vector<std::uint32_t>& data, int readers, int writers, double seconds, std::uint64_t& readOps,
+	           std::uint64_t& writeOps)
 	{
 		std::atomic<std::uint64_t> reads{0};
 		std::atomic<std::uint64_t> writes{0};
@@ -232,8 +230,8 @@ namespace
 	}
 
 	template <class Mutex, bool SharedReads>
-	void runMixed(Mutex& mtx, std::vector<std::uint32_t>& data, int workers, double writeFraction, double seconds,
-	              std::uint64_t& readOps, std::uint64_t& writeOps)
+	void runMixed(Mutex& mtx, std::vector<std::uint32_t>& data, int workers, double writeFraction, double seconds, std::uint64_t& readOps,
+	              std::uint64_t& writeOps)
 	{
 		std::atomic<std::uint64_t> reads{0};
 		std::atomic<std::uint64_t> writes{0};
@@ -259,9 +257,7 @@ namespace
 					{
 						if (mtx.try_lock())
 						{
-							nestedWriteHeld(
-							    data, idx, static_cast<std::uint32_t>(rng()), [&] { mtx.lock(); },
-							    [&] { mtx.unlock(); });
+							nestedWriteHeld(data, idx, static_cast<std::uint32_t>(rng()), [&] { mtx.lock(); }, [&] { mtx.unlock(); });
 							mtx.unlock();
 							++localW;
 						}
@@ -314,8 +310,8 @@ namespace
 	}
 
 	template <class Mutex, bool SharedReads>
-	void runSharded(std::vector<Mutex>& mtxs, std::vector<std::uint32_t>& data, int workers, double writeFraction,
-	                double seconds, std::uint64_t& readOps, std::uint64_t& writeOps)
+	void runSharded(std::vector<Mutex>& mtxs, std::vector<std::uint32_t>& data, int workers, double writeFraction, double seconds,
+	                std::uint64_t& readOps, std::uint64_t& writeOps)
 	{
 		std::atomic<std::uint64_t> reads{0};
 		std::atomic<std::uint64_t> writes{0};
@@ -344,9 +340,7 @@ namespace
 					{
 						if (mtx.try_lock())
 						{
-							nestedWriteHeld(
-							    data, idx, static_cast<std::uint32_t>(rng()), [&] { mtx.lock(); },
-							    [&] { mtx.unlock(); });
+							nestedWriteHeld(data, idx, static_cast<std::uint32_t>(rng()), [&] { mtx.lock(); }, [&] { mtx.unlock(); });
 							mtx.unlock();
 							++localW;
 						}
@@ -424,8 +418,7 @@ namespace
 			rwLabel = "N=" + std::to_string(a.workers);
 		}
 
-		std::cout << a.scenario << "|" << implName << "|" << rwLabel << "|" << readOps << "|" << writeOps << "|"
-		          << a.seconds << "\n";
+		std::cout << a.scenario << "|" << implName << "|" << rwLabel << "|" << readOps << "|" << writeOps << "|" << a.seconds << "\n";
 	}
 
 } // namespace
