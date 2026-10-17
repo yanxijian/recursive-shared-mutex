@@ -183,7 +183,7 @@ jobs:
           PY
 
       - name: Record the batch in the soak history
-        if: ${{ inputs.record == 'true' }}
+        if: ${{ inputs.record }}
         run: |
           python3 - <<'PY'
           import datetime, os, pathlib
