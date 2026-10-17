@@ -119,8 +119,6 @@ Defaults for new and touched APIs; not a mandate to rewrite stable signatures.
 |---|---|---|
 | Scalars, enums, pointers | by value `T` | needless `const int&` |
 | Large read-only | `const T&` | accidental copy |
-| String parsing / matching | `std::string_view` by value | storing a view in a member |
-| Sink (store into a member) | `T` by value + `std::move` | `const T&` then copy |
 | Mutate the caller's object | `T&` | out-param disguised as a pointer |
 | Exclusive ownership handoff | `std::unique_ptr<T>` by value | naked `new` |
 
@@ -151,9 +149,6 @@ the automation overwrite the desktop files.
   the cells.
 - **Benchmark automation** opens no pull requests and commits only
   `benchmarks/results/ci-*.md`. Do not add `gh pr merge` to any workflow.
-- **Windows specifics:** `g++ -o /dev/null` fails on this platform, and
-  `[System.IO.File]::ReadAllBytes("relative")` resolves against the process
-  working directory, not PowerShell's location.
 - **Catch2:** assertions must run on the main thread. A failing `REQUIRE` inside
   a `std::thread` escapes as `Catch::TestFailureException` and terminates the
   process instead of failing the case.
