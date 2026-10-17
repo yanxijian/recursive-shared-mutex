@@ -195,6 +195,11 @@ the automation overwrite the desktop files.
 - **Push policy:** work on a branch, open a PR, let CI run. Never force-push
   `main`. Batch related edits into one push: every push costs a full CI cycle
   (~2 minutes), and three pushes for one idea is three minutes paid for nothing.
+- **Authorship:** commits are authored by the maintainer, and an agent-assisted
+  commit carries `Co-authored-by: review <review@local>` in the body. Do not
+  invent a separate author identity for the agent: a commit authored by an address
+  that is not on anyone's account is unattributed on GitHub, missing from the
+  contribution graph, and unfindable with `git log --author`.
 - **CI is tiered, and by what the change can break.** `ci.yml` and
   `platform-matrix.yml` filter on *build inputs* (`include/`, `tests/`,
   `examples/`, `CMakeLists.txt`, `.clang-format`, `.gitattributes`): a
