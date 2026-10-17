@@ -18,13 +18,21 @@ name: platform-matrix
 on:
   push:
     branches: [main, master]
-    paths-ignore: &docs_only
-      - "**/*.md"
-      - "docs/**"
-      - ".cursor/**"
-      - "benchmarks/results/**"
+    # Same rule as ci.yml: start a matrix only when the thing under test changed.
+    # A reverse ignore list let a change to scripts/*.py start fourteen runners.
+    paths: &toolchain_inputs
+      - "include/**"
+      - "tests/**"
+      - "examples/**"
+      - "benchmarks/*.cpp"
+      - "benchmarks/CMakeLists.txt"
+      - "cmake/**"
+      - "CMakeLists.txt"
+      - ".clang-format"
+      - ".gitattributes"
+      - ".github/workflows/platform-matrix.yml"
   pull_request:
-    paths-ignore: *docs_only
+    paths: *toolchain_inputs
   schedule:
     - cron: "0 4 * * 1" # weekly: catch toolchain/image drift (this is how the
                         # MinGW winpthreads defect would have been caught)

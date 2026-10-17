@@ -14,6 +14,12 @@ cmake --build build
 ctest --test-dir build --output-on-failure
 ```
 
+Before pushing, run the repository rules check (CI runs it too):
+
+```bash
+python3 scripts/check_repo_rules.py
+```
+
 ## Coding guidelines
 
 - Public API stays in namespace `rsm`
@@ -22,6 +28,8 @@ ctest --test-dir build --output-on-failure
 - Match `.clang-format` / `.editorconfig` (UTF-8 BOM + CRLF for C/C++ sources on this project)
 - Add or update tests for behavior changes
 - Update `CHANGELOG.md` under `[Unreleased]` (or the next version section)
+- The full rule set is [AGENTS.md](../AGENTS.md); the parts a program can check
+  are enforced in CI by `scripts/check_repo_rules.py`
 
 ## Pull requests
 
