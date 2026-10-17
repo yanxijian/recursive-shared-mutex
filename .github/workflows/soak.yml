@@ -31,7 +31,9 @@ jobs:
         run: g++ -O2 -std=c++17 -pthread -Iinclude tests/mutual_exclusion.cpp -o mutual_exclusion
 
       - name: Run (8 threads, 60 s)
-        run: ./mutual_exclusion --threads 8 --seconds 60
+        # The seed follows the run id. A fixed seed would replay the same
+        # schedules every night, which is coverage theatre, not a soak.
+        run: ./mutual_exclusion --threads 8 --seconds 60 --seed $(( GITHUB_RUN_ID % 2147483647 + 1 ))
 
   mutual-exclusion-tsan:
     name: mutual_exclusion 30s, TSan
@@ -46,7 +48,7 @@ jobs:
         run: g++ -O1 -g -std=c++17 -pthread -fsanitize=thread -Iinclude tests/mutual_exclusion.cpp -o mutual_exclusion
 
       - name: Run (4 threads, 30 s)
-        run: ./mutual_exclusion --threads 4 --seconds 30
+        run: ./mutual_exclusion --threads 4 --seconds 30 --seed $(( GITHUB_RUN_ID % 2147483647 + 2 ))
 
   model-check:
     # The fixed suite checks the cases someone thought of. This one walks random
@@ -62,9 +64,11 @@ jobs:
       - name: Build
         run: g++ -O2 -std=c++17 -pthread -Iinclude tests/model_check.cpp -o model_check
 
-      - name: Run (8 threads, seeds 1-4, 30 s each)
+      - name: Run (8 threads, seeds from the run id, 30 s each)
         run: |
-          for seed in 1 2 3 4; do
+          base=$(( GITHUB_RUN_ID % 1000000 ))
+          for i in 1 2 3 4; do
+            seed=$(( base + i ))
             echo "--- seed $seed ---"
             ./model_check --seed "$seed" --ops 2000000 --threads 8 --seconds 30
           done
@@ -85,5 +89,5 @@ jobs:
       # (single-threaded, so it cannot deadlock), and TSan reports that as a
       # lock-order inversion on the same thread. Data-race detection does not
       # need the multi-mutex layout; the plain job above keeps 8.
-      - name: Run (4 threads, 1 mutex, seed 7, 30 s)
-        run: ./model_check --seed 7 --ops 500000 --threads 4 --mutexes 1 --seconds 30
+      - name: Run (4 threads, 1 mutex, seed from the run id, 30 s)
+        run: ./model_check --seed $(( GITHUB_RUN_ID % 1000000 + 7 )) --ops 500000 --threads 4 --mutexes 1 --seconds 30

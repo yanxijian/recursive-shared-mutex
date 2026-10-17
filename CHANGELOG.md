@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The nightly soak derives every seed from `GITHUB_RUN_ID` instead of replaying seeds 1-4 and 0x5EED every night: a fixed seed is coverage theatre, not a soak.
 - Tests can now fail reproducibly. `mutual_exclusion --seed N` prints the seed and keeps a per-thread ring of the last 1024 operations, dumped on a violation; `model_check` does the same and adds a watchdog that turns a self-deadlock into exit 3 with the rings instead of a CI timeout.
 - New `tests/model_check.cpp`: the documented spec as a shadow model over seeded random operation sequences. The single-threaded phase is exact - every return value and error code is predicted, across several mutexes, so per-instance isolation and the slot table are exercised. The concurrent phase asserts only what a thread's own history decides plus per-mutex exclusion: a contended `try_lock` is never over-predicted, because the owner may release between the model read and the call. Mutation-tested (accessor pinned false/true, `unlock` ignoring a nested shared lock): the first is caught by the watchdog, the other two fail the model. `ctest` runs a 2 s pass; `soak.yml` runs four 30 s seeds nightly plus a TSan pass.
 ## [v0.4.0] - 2026-10-18
