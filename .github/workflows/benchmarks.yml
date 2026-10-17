@@ -158,7 +158,7 @@ jobs:
           $paths = @(gh pr view $num --json files --jq '.files[].path')
           $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/ci-[A-Za-z0-9._-]+\.md$' })
           if ($unexpected.Count -gt 0) {
-            Write-Host "::warning::not auto-merging #$num: it touches $($unexpected -join ', ')"
+            Write-Host ("::warning::not auto-merging #{0}: it touches {1}" -f $num, ($unexpected -join ", "))
             exit 0
           }
           # Mergeability is computed asynchronously right after the PR appears, and
