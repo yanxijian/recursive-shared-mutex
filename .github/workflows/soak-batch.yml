@@ -42,15 +42,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    name: prepare
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.list.outputs.shards }}
+    steps:
+      - id: list
+        env:
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          if [ "$SHARDS" -lt 1 ] || [ "$SHARDS" -gt 8 ]; then
+            echo "shards must be between 1 and 8"
+            exit 2
+          fi
+          python3 -c 'import json, os; print("shards=" + json.dumps(list(range(int(os.environ["SHARDS"])))))' >> "$GITHUB_OUTPUT"
+
   shard:
     name: shard ${{ matrix.shard }}
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
-    if: ${{ matrix.shard < fromJSON(github.event.inputs.shards) }}
+        shard: ${{ fromJSON(needs.prepare.outputs.shards) }}
     steps:
       - uses: actions/checkout@v4
 
