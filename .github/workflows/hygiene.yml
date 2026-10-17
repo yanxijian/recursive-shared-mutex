@@ -25,6 +25,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check repository rules
         run: python3 scripts/check_repo_rules.py
+      - name: Test the checker
+        # The checker is what turns AGENTS.md into a build failure, so it gets the
+        # same treatment as the library: a regression in --fix has to fail here.
+        run: python3 -m unittest discover -s scripts/tests -v
 
   clang-format:
     name: clang-format

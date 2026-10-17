@@ -27,7 +27,7 @@ void read() {
 
 ## Features
 
-- Compatible with `std::unique_lock` / `std::shared_lock` (C++17 *SharedMutex* surface)
+- Compatible with `std::unique_lock` / `std::shared_lock` (C++17 *SharedMutex* surface; see [Limitations](#limitations) for the one place it is not literally `Cpp17Lockable`)
 - Per-thread **and** per-mutex recursion counts (POD slot table keyed by the mutex address; slots recycled on unlock, no heap allocation)
 - Write→read nesting allowed; read→write upgrade is rejected (`std::system_error`)
 - `try_lock` / `try_lock_shared`
@@ -76,10 +76,16 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
 | MinGW-GCC 13.2 + `RSM_BACKEND_STD` (libstdc++/winpthreads) | 4.99 M ops/s | 0.34 M ops/s | **0.067×** |
 | MinGW-GCC 13.2 (default: native SRWLOCK) | 4.99 M ops/s | 7.54 M ops/s | **1.52×** |
 
-> Numbers are medians of several runs on one 32-core machine, and that machine is noisy: the
-> per-report `Run-to-run spread` line has shown tens of percent, up to 250% on the balanced
-> scenario. Read them as order of magnitude; [benchmarks/README.md](benchmarks/README.md)
-> explains why, and `benchmarks/results/ci-*.md` is the fixed-hardware drift record.
+> **Protocol:** 8 threads, `try_lock` + `yield` spin, nesting depth 3, median of 5 interleaved
+> 1 s rounds on one 32-core Windows host. The raw ops/s and the same table live in
+> [docs/platform-notes.md](docs/platform-notes.md) §2 and §6.
+>
+> This is a **different harness** from [benchmarks/results](benchmarks/results) (3 s × 3 repeats,
+> real work between lock operations), so the ratios differ: that harness reports 1.03× (MSVC)
+> and 1.42× (MinGW, native backend) against 1.17× and 1.52× here. Both agree on the conclusion -
+> parity within noise on the exclusive path - and neither transfers to another machine.
+> Run-to-run noise on this host reaches 250% on the balanced scenario, so read the numbers as
+> order of magnitude.
 
 - **MSVC / clang with the MSVC STL**: the wrapper costs about 1.3 ns per lock
   pair (4.6 ns vs 3.3 ns for the raw backend), and that cost no longer depends on how
@@ -221,6 +227,8 @@ Zero cost when no recorder is installed; see
 - `std::shared_mutex` underneath has no writer preference: writers may starve under continuous readers (see benchmarks S1/S5).
 - `std::condition_variable_any` is unsafe once recursion depth > 1: `wait()` releases only one level, so the mutex stays held and the waiter never wakes.
 - The backend must honour mutual exclusion. MinGW-w64 GCC 13.2 (libstdc++/winpthreads) does not: `try_lock()` can grant two owners, which surfaces as spurious `operation_not_permitted` from `unlock()` inside this library. That is why MinGW defaults to the native backend and `RSM_BACKEND_STD` is opt-in; run [tests/backend_contract.cpp](tests/backend_contract.cpp) on any new toolchain. Details in [docs/platform-notes.md](docs/platform-notes.md).
+- **Not literally `Cpp17Lockable`.** `unlock()` and `unlock_shared()` throw `std::system_error` on misuse, while the named requirement says *Throws: Nothing* (`[thread.mutex.requirements.mutex]`). Generic algorithms only unlock what they acquired, so `std::lock`, `std::scoped_lock` and the two RAII wrappers work; a mismatched pair reached from a destructor ends the process, as noted above.
+- **MinGW pulls in `<windows.h>`.** The default native backend includes it, and that costs real compile time: 655 ms vs 207 ms for one translation unit on the machine these numbers come from (3.2×). `RSM_BACKEND_STD` avoids the include but is unsound on that toolchain, so there is no good way to opt out.
 
 ## Project layout
 

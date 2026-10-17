@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:79941dfd98c6 -->
+<!-- translated-from: README.md sha256:b75482ef86ff -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -30,7 +30,7 @@ void read() {
 
 ## 特性
 
-- 兼容 `std::unique_lock` / `std::shared_lock`（C++17 的 *SharedMutex* 接口）
+- 兼容 `std::unique_lock` / `std::shared_lock`（C++17 的 *SharedMutex* 接口；唯一不满足 `Cpp17Lockable` 字面要求的地方见[限制](#限制)）
 - 同时维护**每线程**与**每把锁**的递归计数（POD 槽位表，以 mutex 地址为键；解锁即回收，无堆分配）
 - 允许"写 → 读"嵌套；拒绝"读 → 写"升级（抛 `std::system_error`）
 - `try_lock` / `try_lock_shared`
@@ -78,10 +78,13 @@ std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
 | MinGW-GCC 13.2 + `RSM_BACKEND_STD`（libstdc++/winpthreads） | 4.99 M ops/s | 0.34 M ops/s | **0.067×** |
 | MinGW-GCC 13.2（默认：原生 SRWLOCK） | 4.99 M ops/s | 7.54 M ops/s | **1.52×** |
 
-> 这些数字是在同一台 32 核机器上多次运行的中位数，而这台机器很吵：每份报告的 `Run-to-run spread`
-> 行显示离差可达数十个百分点，balanced 场景甚至到过 250%。请把它们当作数量级来读；
-> [benchmarks/README.md](benchmarks/README.md) 解释了原因，`benchmarks/results/ci-*.md` 才是固定硬件上的
-> 漂移记录。
+> **协议：** 8 线程、`try_lock` + `yield` 自旋、嵌套深度 3、5 次交错的 1 秒轮次取中位，跑在一台 32 核
+> Windows 主机上。原始 ops/s 与同一张表在 [docs/platform-notes.md](docs/platform-notes.md) §2 与 §6。
+>
+> 这与 [benchmarks/results](benchmarks/results) 是**两套不同的框架**（3 秒 × 3 次、加解锁之间有实际工作），
+> 所以比值不同：那套框架报 1.03×（MSVC）与 1.42×（MinGW 原生后端），这里是 1.17× 与 1.52×。
+> 两者结论一致——纯独占路径在噪声范围内持平——但绝对值都不能搬到别的机器上。本机 balanced 场景的
+> 运行间噪声可达 250%，因此请把数字当作数量级来读。
 
 - **MSVC / clang 配 MSVC STL**：包装成本约每次加解锁 1.3 ns（4.6 ns vs 裸后端 3.3 ns），而且这个成本
   不再取决于本线程在别处持有多少把共享锁；纯独占开销为 **0.9×–1.2×**，读密集负载总吞吐约提升 **6×–14×**。
@@ -218,6 +221,12 @@ rsm::metrics::set_recorder(&stats);
   表现为本库 `unlock()` 抛出的虚假 `operation_not_permitted`。这就是 MinGW 默认原生后端、
   `RSM_BACKEND_STD` 需要显式开启的原因；换任何新工具链都要跑
   [tests/backend_contract.cpp](tests/backend_contract.cpp)。细节见 [docs/platform-notes.md](docs/platform-notes.md)。
+- **字面上不满足 `Cpp17Lockable`。** 误用时 `unlock()` / `unlock_shared()` 会抛 `std::system_error`，
+  而命名要求写的是 *Throws: Nothing*（`[thread.mutex.requirements.mutex]`）。通用算法只会释放自己取得的锁，
+  所以 `std::lock`、`std::scoped_lock` 与两个 RAII 包装都正常；但配对错误一旦发生在析构里，进程会被终止（见上文）。
+- **MinGW 会把 `<windows.h>` 拉进来。** 默认原身后端需要它，代价是真实的编译时间：在产生这些数字的机器上，
+  同一个编译单元 655 ms vs 207 ms（3.2×）。`RSM_BACKEND_STD` 能避开这个包含，但在该工具链上不健全，
+  所以没有好的办法绕开。
 
 ## 仓库结构
 

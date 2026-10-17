@@ -36,6 +36,7 @@ cmake --build build
 ctest --test-dir build --output-on-failure --timeout 180
 
 python3 scripts/check_repo_rules.py      # repository rules (fast, run before pushing)
+python3 -m unittest discover -s scripts/tests   # the checker's own tests
 clang-format --dry-run -Werror <files>   # the exact list is in .github/workflows/hygiene.yml
 ```
 

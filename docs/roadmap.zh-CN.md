@@ -2,7 +2,7 @@
 
 [English](roadmap.md) · **简体中文**
 
-<!-- translated-from: roadmap.md sha256:d3239460fdba -->
+<!-- translated-from: roadmap.md sha256:ec354da1fcd6 -->
 
 RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 `std::recursive_mutex` 带到读写锁，
 直到代码库可以去递归化。本路线图覆盖剩余的生命周期。
@@ -90,8 +90,9 @@ R2 剩余的部分在消费方项目：把 `Recorder` 接到指标栈，并对 p
 
 - 后端契约测试（`tests/backend_contract.cpp`、`tests/mutual_exclusion.cpp`），无框架依赖，
   任意工具链一行编译命令即可检查。
-- 13 格平台矩阵，外加一个每周运行的 `expected-fail` 探针，用来持续证明 MinGW winpthreads 缺陷仍然存在：
-  缺陷存在时是绿的，上游修好那天变红。
+- [`.github/workflows/platform-matrix.yml`](../.github/workflows/platform-matrix.yml) 里的平台矩阵，
+  外加一个每周运行的 `expected-fail` 探针，用来持续证明 MinGW winpthreads 缺陷仍然存在：
+  缺陷存在时是绿的，上游修好那天变红。（这里不写格数：那句话里的数字已经过期两次。）
 - MinGW 默认使用原生 SRWLOCK 后端（v0.3.0）。
 - 编译期开关：`RSM_SHARED_SLOT_COUNT`、`RSM_VERSION`、`RSM_NO_DEBUG_ASSERT`、`RSM_BACKEND_STD`。
 - 面向分片数组的 `rsm::CacheAlignedRecursiveSharedMutex`（在那种场景下约 2×）。

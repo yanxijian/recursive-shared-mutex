@@ -48,10 +48,11 @@ concurrency.
 | MinGW-GCC 13.2 | 4,986,027 ops/s | 335,929 ops/s | **0.067×** |
 
 The MinGW row is `RSM_BACKEND_STD`; the native backend reaches 1.52× in section 6.
-The checked-in benchmark tables report 0.93× (MSVC) and 0.10× (MinGW); both are
-in the right ballpark — the MinGW cell is if anything worse in this harness. The
-MinGW run also threw spurious `operation_not_permitted` twice during the five
-rounds, which is the symptom described in section 3.
+The checked-in benchmark tables measure a different harness (3 s × 3 repeats with real work
+between lock operations) and report 1.03× (MSVC) and 1.42× (MinGW, native backend): the sign
+of the effect agrees, the exact ratio is protocol-dependent. The MinGW run here also threw
+spurious `operation_not_permitted` twice during the five rounds, which is the symptom
+described in section 3.
 
 ## 3. The backend contract (why MinGW is not just slow)
 

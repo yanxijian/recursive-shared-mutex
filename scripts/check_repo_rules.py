@@ -256,8 +256,6 @@ GITATTRIBUTES_REQUIRED = (
     "*.sh    text eol=lf",
 )
 
-# Extension-less text files worth checking too (the hook must stay LF or it will
-# not run; the formatter config is edited by hand).
 # ---------------------------------------------------------------------------
 # R8 - a translated document stays linked and stays honest
 #      Every document that has a Chinese version must link to it, the Chinese
@@ -323,6 +321,11 @@ def check_translations(rep: Report) -> None:
             )
 
 
+# ---------------------------------------------------------------------------
+# R7, continued - the line-ending block above is interrupted by R8's data, so the
+#      rest of R7 follows here. Extension-less text files are checked too (the
+#      hook must stay LF or it will not run; the formatter config is edited by hand).
+# ---------------------------------------------------------------------------
 TEXT_NAMES = {"LICENSE", ".gitignore", ".gitattributes", ".editorconfig", ".clang-format", "pre-commit"}
 
 
@@ -372,8 +375,7 @@ def check_line_endings(files: list[Path], rep: Report, do_fix: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
-# R5 - one version, two copies: CMakeLists VERSION and the header macros
-#      (this repository's own; they already drifted once and broke find_package)
+# R7, continued - .gitattributes has to keep declaring the standard R7 checks
 # ---------------------------------------------------------------------------
 def check_gitattributes(rep: Report) -> None:
     path = ROOT / ".gitattributes"
@@ -419,6 +421,10 @@ def check_markdown_links(files: list[Path], rep: Report) -> None:
                     rep.bad(f"{rel(path)}:{number}", "links", f"`{target}` does not resolve")
 
 
+# ---------------------------------------------------------------------------
+# R5 - one version, two copies: CMakeLists VERSION and the header macros
+#      (this repository's own; they already drifted once and broke find_package)
+# ---------------------------------------------------------------------------
 def check_version(rep: Report) -> None:
     cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
     header = (ROOT / "include/recursive_shared_mutex/recursive_shared_mutex.hpp").read_text(encoding="utf-8-sig")
@@ -446,15 +452,35 @@ def check_version(rep: Report) -> None:
 
 
 # ---------------------------------------------------------------------------
-# R6 - a change log entry exists, so agents do not silently change behaviour
+# R6 - a change log entry exists, so agents do not silently change behaviour,
+#      and every `## [x]` release heading has the `[x]: url` definition that
+#      turns it into a link. A missing definition renders as plain text and no
+#      other check looks at reference-style links at all.
 # ---------------------------------------------------------------------------
+CHANGELOG_HEADING = re.compile(r"^##\s+\[([^\]]+)\]")
+CHANGELOG_DEFINITION = re.compile(r"^\[([^\]]+)\]:\s*(\S+)")
+
+
+def missing_changelog_definitions(text: str) -> list[str]:
+    headings = [match.group(1) for match in map(CHANGELOG_HEADING.match, text.splitlines()) if match]
+    definitions = {match.group(1) for match in map(CHANGELOG_DEFINITION.match, text.splitlines()) if match}
+    return [heading for heading in headings if heading not in definitions]
+
+
 def check_changelog(rep: Report) -> None:
     path = ROOT / "CHANGELOG.md"
     if not path.exists():
         rep.bad("CHANGELOG.md", "changelog", "file missing")
         return
-    if "## [Unreleased]" not in path.read_text(encoding="utf-8"):
+    text = path.read_text(encoding="utf-8")
+    if "## [Unreleased]" not in text:
         rep.bad("CHANGELOG.md", "changelog", "no `## [Unreleased]` section")
+    for heading in missing_changelog_definitions(text):
+        rep.bad(
+            "CHANGELOG.md",
+            "changelog",
+            f"`## [{heading}]` has no `[{heading}]: <url>` definition, so it renders as plain text",
+        )
 
 
 def main() -> int:
@@ -489,7 +515,7 @@ def main() -> int:
     if rep.problems:
         print(f"\n{len(rep.problems)} violation(s). See AGENTS.md for the rule text.")
         return 1
-    scope = "staged files" if args.staged else f"{len(paths)} C/C++ and {len(files)} text files"
+    scope = "staged files" if args.staged else f"{len(paths)} C/C++ of {len(files)} tracked files"
     print(f"repository rules: clean ({scope})")
     return 0
 

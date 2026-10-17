@@ -245,6 +245,11 @@ namespace rsm
 		// locks costs nothing worth measuring; holding a hundred is a design smell
 		// (shard the locks, or take one at a time) and this table is the reason.
 		static constexpr std::size_t kSharedSlotCount = RSM_SHARED_SLOT_COUNT;
+		// A zero cap is not "no shared locks": it is a zero-length array (a GNU
+		// extension, rejected by MSVC) and every lock_shared() would throw. The
+		// upper end is the caller's business - the table costs 16 B per slot of
+		// TLS per thread - so only the invalid direction is rejected here.
+		static_assert(kSharedSlotCount > 0, "RSM_SHARED_SLOT_COUNT must be at least 1");
 
 #ifdef RSM_ENABLE_TEST_HOOKS
 		// Test-only: one-shot failure injection for the shared slow path.

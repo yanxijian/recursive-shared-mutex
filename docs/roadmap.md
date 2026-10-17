@@ -118,9 +118,10 @@ the standard's trade-off and a fair backend costs readers.
 
 - Backend contract tests (`tests/backend_contract.cpp`, `tests/mutual_exclusion.cpp`),
   framework-free so any toolchain can be checked with one compiler call.
-- A 13-cell platform matrix, plus one weekly `expected-fail` probe that keeps the
-  MinGW winpthreads defect honest: green while the defect exists, red the day
-  upstream fixes it.
+- The platform matrix in [`.github/workflows/platform-matrix.yml`](../.github/workflows/platform-matrix.yml),
+  plus one weekly `expected-fail` probe that keeps the MinGW winpthreads defect honest: green
+  while the defect exists, red the day upstream fixes it. (No cell count here: the number in
+  this sentence went stale twice.)
 - MinGW defaults to the native SRWLOCK backend (v0.3.0).
 - Compile-time knobs: `RSM_SHARED_SLOT_COUNT`, `RSM_VERSION`, `RSM_NO_DEBUG_ASSERT`,
   `RSM_BACKEND_STD`.
