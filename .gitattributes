@@ -1,0 +1,31 @@
+# Line endings and text handling - the standard, declared once.
+#
+# Policy:
+#   * C/C++ sources keep UTF-8 BOM + CRLF (see AGENTS.md R1). `-text -eol` means git
+#     never converts them, so the bytes on disk are the bytes in the object store.
+#   * Everything else is LF in the repository AND on checkout - that is what
+#     `text=auto eol=lf` means, and it matches .editorconfig's [*] default.
+#   * Windows batch files are the one real exception: cmd.exe expects CRLF, so
+#     they are stored as LF and checked out as CRLF.
+#
+# `scripts/check_repo_rules.py` (R7) verifies the working tree agrees with this,
+# so a stray editor or a careless rewrite cannot flip a whole file silently.
+
+* text=auto eol=lf
+
+# C/C++: BOM + CRLF, byte for byte, in the repository and in every checkout.
+*.c   -text -eol
+*.cc   -text -eol
+*.cpp   -text -eol
+*.cxx   -text -eol
+*.h   -text -eol
+*.hh   -text -eol
+*.hpp   -text -eol
+*.hxx   -text -eol
+
+# Batch files: LF in the object store, CRLF on checkout.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Shell scripts stay LF everywhere, or the shebang breaks.
+*.sh    text eol=lf

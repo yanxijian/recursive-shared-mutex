@@ -52,7 +52,8 @@ BOM** and **CRLF**, no exceptions for first-party sources.
 - Tools do not do this for you: `clang-format` writes CRLF (`LineEnding: CRLF`)
   but **never** writes a BOM; many editors and patch helpers silently strip it.
 - `python3 scripts/check_repo_rules.py --fix` repairs both.
-- Do not add a `.gitattributes` that normalises these files to LF.
+- `.gitattributes` marks them `-text`, so git neither converts them on commit nor
+  on checkout - the bytes in the object store are the bytes in your editor.
 
 Why it matters: the header contains `×`, `≈` and `µs` in comments. MSVC assumes
 the system code page for a BOM-less file, so a missing BOM shows up as mojibake
@@ -95,22 +96,29 @@ analysis all miss it. `#include <windows.h>` in a header is fine - it is the
 Behaviour changes, new knobs and fixes go under it (`Added` / `Changed` /
 `Fixed`). "No changelog needed" is only true for typo fixes in comments.
 
-### R7 - A text file keeps its line endings **[CI]**
+### R7 - Line endings follow `.gitattributes` **[CI]**
 
-C/C++ is CRLF + BOM (R1); **everything else is LF** - documentation, workflows,
-scripts - which is also what `.editorconfig` declares as its default. A handful of
-build files predate that and are still CRLF; they are named in `EOL_POLICY` inside
-`scripts/check_repo_rules.py`.
+The standard is declared once, in [`.gitattributes`](.gitattributes):
+
+| Path | Repository and checkout |
+|---|---|
+| `*.c *.cc *.cpp *.cxx *.h *.hh *.hpp *.hxx` | **UTF-8 BOM + CRLF**, and `-text` so git never converts them (R1) |
+| `*.bat *.cmd` | LF in the object store, **CRLF on checkout** - cmd.exe expects it |
+| everything else | **LF** in the repository and on checkout (`* text=auto eol=lf`) |
+
+`.editorconfig` states the same default and the same C/C++ exception.
 
 Nothing notices a whole-file flip - not the compiler, not clang-format, not git -
 and a flip shows up as a rewrite of every line: a 200-line document becomes a
-400-line diff without a word changed.
+400-line diff without a word changed. So the checker verifies the working tree
+against this table, and verifies that `.gitattributes` still declares it.
 
-- New files default to **LF**.
+- New files default to **LF**; only batch files are CRLF.
 - Rewriting a file with the wrong endings fails the build; `--fix` normalises the
-  files the policy names. A `mixed` entry (none today) means the file must keep both
-  endings, and `--fix` refuses it.
-- Moving a file's entry in `EOL_POLICY` is the deliberate way to change its style.
+  ones the table names.
+- Changing a file's style means changing `.gitattributes` (and, for a one-off,
+  `EOL_POLICY` in `scripts/check_repo_rules.py`) - deliberately, never as a side
+  effect of an edit.
 
 
 ### R8 - Think before making `try_*` throw **[review]**
