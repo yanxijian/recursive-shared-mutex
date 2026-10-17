@@ -8,10 +8,6 @@ exist only to point here, so there is one place to update.
 Rules marked **[CI]** are enforced by `scripts/check_repo_rules.py`, which runs on
 every push and pull request. Breaking one fails the build - it is not advice.
 Rules marked **[review]** need judgement and cannot be checked mechanically.
-**[generator]** rules are already applied when you run the listed tool.
-
-Derived from the Cursor rules in `D:\Codes\Volition\.cursor\rules`; see
-[Provenance](#provenance) for what was imported, changed, or rejected.
 
 ---
 
@@ -67,9 +63,6 @@ in the IDE and, on a non-Western code page, can break parsing.
 `ColumnLimit: 120`, `UseTab: ForIndentation`, `TabWidth: 4` (see `.clang-format`).
 Keep a statement on one line when it fits; do not wrap early "for style", and do
 not reflow files you are not otherwise changing.
-
-(The Cursor rule this came from used 140 - the number is repository-specific, the
-principle is not.)
 
 ### R3 - Windows libraries through CMake, never `#pragma comment(lib)` **[CI]**
 
@@ -164,19 +157,3 @@ the automation overwrite the desktop files.
 - **Catch2:** assertions must run on the main thread. A failing `REQUIRE` inside
   a `std::thread` escapes as `Catch::TestFailureException` and terminates the
   process instead of failing the case.
-
-## Provenance
-
-Imported from `D:\Codes\Volition\.cursor\rules` on 2026-10-17.
-
-| Origin rule | Verdict | Here |
-|---|---|---|
-| `cpp-source-encoding.mdc` | **imported as-is** | R1 - the repository already declared BOM+CRLF in `.clang-format` but nothing enforced it; the checker found 4 files missing the BOM on day one |
-| `cmake-windows-libs.mdc` | **imported as-is** | R3 - no violations today, and this header-only library is exactly what tempts someone to `#pragma comment(lib, "kernel32.lib")` |
-| `cpp-column-limit.mdc` | **imported, number changed 140 -> 120** | R2 - the principle (clang-format is the authority, do not wrap early, do not reflow drive-bys) transfers; the width does not |
-| `cpp-param-passing.mdc` | **imported, Qt rows removed** | R9 - the lifetime/copy guidance is language-level; the `QObject`/`QStringView` rows are Volition-specific |
-| `cpp-naming.mdc` | **rejected** | Qt `m_`/lowerCamelCase, `g_`/`s_`/`gs_` prefixes and `kCamelCase`-only constants conflict with this repository's `snake_case` + trailing underscore (`owner_`, `exclusive_count_`), and none of it is enforceable here. The one part already in use - `kSharedSlotCount` - is kept as convention in R4's spirit. Mass-renaming a public header to satisfy a foreign style guide would break every consumer |
-| `cpp-include-guards.mdc` | **rejected** | `#pragma once` is this repository's documented, tested convention and every supported compiler implements it; `__TARGET_FILE_H__` also needs a per-repo target map that has no meaning for a single header. R4 keeps the part that matters: the guard must be the first significant line |
-
-Rejected rules are listed so the next agent does not re-litigate them. If you
-have a reason the verdict is wrong, say so in a PR that also updates this table.
