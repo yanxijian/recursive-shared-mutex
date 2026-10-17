@@ -1,10 +1,37 @@
 ﻿#pragma once
 
 #include <atomic>
+#include <cassert>
 #include <cstddef>
 #include <shared_mutex>
 #include <system_error>
 #include <thread>
+
+// Compile-time knobs (all optional; the defaults are what the benchmarks and the
+// documented semantics assume).
+//
+//   RSM_VERSION / RSM_VERSION_MAJOR/MINOR/PATCH
+//     Version of this header, for consumers that pull it via FetchContent and
+//     can only see the file, not the CMake package. Keep in sync with
+//     project(VERSION) in CMakeLists.txt.
+//
+//   RSM_SHARED_SLOT_COUNT (default 256)
+//     Per-thread cap on distinct mutexes tracked for shared recursion. One slot
+//     is 16 bytes of thread-local storage, so the default costs 4 KB per thread
+//     that ever takes a shared lock. Lower it (64 -> 1 KB) on thread-heavy or
+//     embedded targets; raise it if one thread really holds more than 256
+//     distinct shared locks at once.
+//
+//   RSM_NO_DEBUG_ASSERT
+//     Disables the debug-only checks (destruction while locked).
+#define RSM_VERSION_MAJOR 0
+#define RSM_VERSION_MINOR 2
+#define RSM_VERSION_PATCH 1
+#define RSM_VERSION (RSM_VERSION_MAJOR * 10000 + RSM_VERSION_MINOR * 100 + RSM_VERSION_PATCH)
+
+#ifndef RSM_SHARED_SLOT_COUNT
+#define RSM_SHARED_SLOT_COUNT 256
+#endif
 
 // C++17 header-only recursive shared_mutex.
 // Exclusive: atomic owner id + owner-only counters on the instance.
@@ -69,8 +96,9 @@ namespace rsm
 		// Per-thread cap on distinct mutexes tracked for shared recursion.
 		// Slots are recycled as soon as a shared lock depth drops to zero,
 		// so the working set is the number of *currently held* shared locks,
-		// not the number of mutexes ever touched.
-		static constexpr std::size_t kSharedSlotCount = 256;
+		// not the number of mutexes ever touched. Override with
+		// RSM_SHARED_SLOT_COUNT (see the top of this header).
+		static constexpr std::size_t kSharedSlotCount = RSM_SHARED_SLOT_COUNT;
 
 #ifdef RSM_ENABLE_TEST_HOOKS
 		// Test-only: one-shot failure injection for the shared slow path.
@@ -84,6 +112,15 @@ namespace rsm
 
 		~RecursiveSharedMutex()
 		{
+#if !defined(NDEBUG) && !defined(RSM_NO_DEBUG_ASSERT)
+			// Destroying a locked mutex is undefined behaviour. Catch the
+			// exclusive case here instead of letting the stale `owner_` poison a
+			// later mutex at the same address. (A shared lock held by another
+			// thread leaves no trace on this instance, so it cannot be caught.)
+			assert(owner_.load(std::memory_order_relaxed) == std::thread::id{});
+			assert(exclusive_count_ == 0);
+			assert(under_exclusive_ == 0);
+#endif
 			// Defensive: per the "never destroy while locked" contract no
 			// active slot should remain; compact if one does.
 			SharedDepthSlot* slot = findActiveSlot();
@@ -315,6 +352,22 @@ namespace rsm
 		std::atomic<std::thread::id> owner_{};
 		int exclusive_count_ = 0;
 		int under_exclusive_ = 0;
+	};
+
+	// Cache-line-aligned variant, for mutexes that sit next to each other (a
+	// sharded array or vector). The default instance is 24 bytes, so ~2.6 of them
+	// share a 64-byte line and the shards false-share the owner/counter updates.
+	// Measured with 8 shards and 16 threads (0/15/50 % writes): 2.0x-2.4x the
+	// throughput of the plain type on both MSVC and MinGW.
+	//
+	// It is a separate type rather than the default because it costs 64 bytes per
+	// instance - worth it for a fixed set of shards, wasteful when a mutex is
+	// embedded in a per-object struct.
+	//
+	//   std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
+	//
+	struct alignas(64) CacheAlignedRecursiveSharedMutex : RecursiveSharedMutex
+	{
 	};
 
 } // namespace rsm

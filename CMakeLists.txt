@@ -1,11 +1,15 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(recursive_shared_mutex
-	VERSION 0.1.0
+	VERSION 0.2.1
 	DESCRIPTION "C++17 header-only recursive shared_mutex"
 	HOMEPAGE_URL "https://github.com/yanxijian/recursive-shared-mutex"
 	LANGUAGES CXX
 )
+
+# Keep VERSION in sync with RSM_VERSION_* in the header: the header is what
+# FetchContent consumers see, this is what find_package() sees, and they used to
+# disagree (0.1.0 here while v0.2.x was released).
 
 option(RSM_BUILD_TESTS "Build unit tests" ON)
 option(RSM_BUILD_EXAMPLES "Build examples" ON)
