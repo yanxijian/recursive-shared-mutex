@@ -147,7 +147,7 @@ jobs:
           - { name: msvc-x64-debug,       arch: x64, cfg: Debug }
           - { name: msvc-x86-release,     arch: x86, cfg: Release }
           - { name: msvc-x64-srwlock,     arch: x64, cfg: Release, flags: "-DRSM_BACKEND_SRWLOCK" }
-          - { name: clang-cl-x64,         arch: x64, cfg: Release, toolset: "-T ClangCL" }
+          - { name: clang-cl-x64,         arch: x64, cfg: Release, cxx: clang-cl }
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
@@ -155,18 +155,20 @@ jobs:
           arch: ${{ matrix.arch }}
       - name: Configure
         shell: pwsh
-        # NOTE: the Visual Studio generator ignores $env:CXX; the compiler is
-        # selected with -T ClangCL, not by setting CXX.
+        # Ninja + CC/CXX instead of the Visual Studio generator: the generator
+        # name changes with the runner image (17 2022 -> 18 2026 broke the first
+        # run of this matrix), and the VS generator silently ignores CXX, so the
+        # clang-cl cell would quietly build with cl. Ninja honours both.
         run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.arch }} `
-                ${{ matrix.toolset }} `
+          if ("${{ matrix.cxx }}" -ne "") { $env:CC = "${{ matrix.cxx }}"; $env:CXX = "${{ matrix.cxx }}" }
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=${{ matrix.cfg }} `
                 -DCMAKE_CXX_FLAGS="${{ matrix.flags }}" `
                 -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
       - name: Build + test
         shell: pwsh
         run: |
-          cmake --build build --config ${{ matrix.cfg }}
-          ctest --test-dir build -C ${{ matrix.cfg }} --output-on-failure --timeout 180
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
 
   build-mingw:
     # Default backend (libstdc++/winpthreads): known red, see the contract job
