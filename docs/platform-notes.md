@@ -1,4 +1,4 @@
-﻿# Platform notes: measured behaviour per toolchain
+# Platform notes: measured behaviour per toolchain
 
 **English** · [简体中文](platform-notes.zh-CN.md)
 
@@ -146,7 +146,7 @@ slow. `-DRSM_BACKEND_STD` restores `std::shared_mutex`. Measured on MinGW-w64 GC
 | 2× nested shared | 108.1 ns | **66.1 ns** |
 | S7 shape vs `std::recursive_mutex` | 0.068× | **1.523×** |
 | `backend_contract` | **fails** (245 violations) | **passes** (0) |
-| full suite | 24/25 | **25/25** |
+| full suite | **fails** | **passes** |
 
 On MSVC the switch is a no-op in effect (`std::shared_mutex` already is SRWLOCK):
 5.8 vs 5.7 ns, contract passes either way.
@@ -166,7 +166,7 @@ say something about where the cost actually is.
 ### TLS-only state (the instance holds nothing but the backend)
 
 Move `owner_` / `exclusive_count_` / `under_exclusive_` into the slot table, so
-the object is 8 bytes and no thread id is ever read. Same 25 tests, all passing
+the object is 8 bytes and no thread id is ever read. The same suite, all passing
 on MSVC, clang and MinGW + SRWLOCK:
 
 | | current (hybrid) | TLS-only |

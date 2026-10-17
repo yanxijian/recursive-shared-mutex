@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:b75482ef86ff -->
+<!-- translated-from: README.md sha256:903a3e267358 -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -34,6 +34,7 @@ void read() {
 - 同时维护**每线程**与**每把锁**的递归计数（POD 槽位表，以 mutex 地址为键；解锁即回收，无堆分配）
 - 允许"写 → 读"嵌套；拒绝"读 → 写"升级（抛 `std::system_error`）
 - `try_lock` / `try_lock_shared`
+- 供调试断言使用的 `is_held_exclusive()`：只有独占属主为真，共享持有者为假——`!try_lock()` 区分不了这两种情况
 - 面向分片数组的 `CacheAlignedRecursiveSharedMutex`：状态机相同，实例按 64 字节对齐——
   多把 mutex 相邻时吞吐约 **2×**（见下文）
 - header-only，CMake `INTERFACE` 库（`rsm::recursive_shared_mutex`）
@@ -86,7 +87,7 @@ std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
 > 两者结论一致——纯独占路径在噪声范围内持平——但绝对值都不能搬到别的机器上。本机 balanced 场景的
 > 运行间噪声可达 250%，因此请把数字当作数量级来读。
 
-- **MSVC / clang 配 MSVC STL**：包装成本约每次加解锁 1.3 ns（4.6 ns vs 裸后端 3.3 ns），而且这个成本
+- **MSVC / clang 配 MSVC STL**：包装成本约每次加解锁 1.3 ns（4.6 ns vs 裸后端 3.3 ns，均为无争用），而且这个成本
   不再取决于本线程在别处持有多少把共享锁；纯独占开销为 **0.9×–1.2×**，读密集负载总吞吐约提升 **6×–14×**。
 - **MinGW-GCC 配 `RSM_BACKEND_STD`**（本库以前默认选它）：0.07×–0.2×，即独占路径 **回退 5×–15×**。
   原因在工具链而不在设计：libstdc++ 走 winpthreads 的 `std::shared_mutex` 比原生 `SRWLOCK` 慢约 11×，
@@ -237,6 +238,7 @@ examples/                         # 用法示例（含跨模块隐患复现）
 benchmarks/                       # 驱动、CI 自动化、已入库结果
 docs/                             # 设计、迁移、平台记录、路线图
 scripts/check_repo_rules.py       # AGENTS.md 承诺由 CI 执行的规则
+scripts/tests/                    # 规则检查器自身的测试
 cmake/                            # package config
 .github/                          # 工作流、issue/PR 模板、CONTRIBUTING / SECURITY / CODE_OF_CONDUCT
 AGENTS.md                         # 仓库规则，所有 agent 共用一份

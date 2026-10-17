@@ -31,6 +31,7 @@ void read() {
 - Per-thread **and** per-mutex recursion counts (POD slot table keyed by the mutex address; slots recycled on unlock, no heap allocation)
 - Write→read nesting allowed; read→write upgrade is rejected (`std::system_error`)
 - `try_lock` / `try_lock_shared`
+- `is_held_exclusive()` for debug assertions: true only for the owning thread, and false for a shared holder - `!try_lock()` cannot tell those two apart
 - `CacheAlignedRecursiveSharedMutex` for sharded arrays: same state machine, 64-byte aligned instance — **2× throughput** when several mutexes sit next to each other (see below)
 - Header-only, CMake `INTERFACE` library (`rsm::recursive_shared_mutex`)
 
@@ -88,7 +89,7 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
 > order of magnitude.
 
 - **MSVC / clang with the MSVC STL**: the wrapper costs about 1.3 ns per lock
-  pair (4.6 ns vs 3.3 ns for the raw backend), and that cost no longer depends on how
+  pair (4.6 ns vs 3.3 ns for the raw backend, both uncontended), and that cost no longer depends on how
   many shared locks the thread holds elsewhere; exclusive-only overhead is
   **0.9×–1.2×**, and read-heavy workloads gain roughly 6×–14× total throughput.
 - **MinGW-GCC with `RSM_BACKEND_STD`** (what this library used to pick by default): 0.07×–0.2×, i.e. a 5×–15× **regression** on the
@@ -239,6 +240,7 @@ examples/                         # usage demos (incl. the cross-module hazard r
 benchmarks/                       # driver, CI automation, checked-in results
 docs/                             # design, migration, platform notes, roadmap
 scripts/check_repo_rules.py       # the rules AGENTS.md promises CI enforces
+scripts/tests/                    # tests for the rules checker itself
 cmake/                            # package config
 .github/                          # workflows, issue/PR templates, CONTRIBUTING / SECURITY / CODE_OF_CONDUCT
 AGENTS.md                         # repository rules, one file for every agent

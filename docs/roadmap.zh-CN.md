@@ -2,7 +2,7 @@
 
 [English](roadmap.md) · **简体中文**
 
-<!-- translated-from: roadmap.md sha256:73322f961406 -->
+<!-- translated-from: roadmap.md sha256:f02ac3e9b6ed -->
 
 RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 `std::recursive_mutex` 带到读写锁，
 直到代码库可以去递归化。本路线图覆盖剩余的生命周期。
@@ -38,13 +38,13 @@ RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 
 - 只是**提示级**（`#pragma message`），不是 `#warning`：启用协程语言模式本身不是误用；同线程恢复是合法的。
 - 关闭开关：`-DRSM_NO_THREAD_MIGRATION_NOTICE`。
 - 诚实的边界：编译期无法检测线程迁移或工作窃取执行器（那是运行时属性），而 C++17 **并不**排除可在 C++17 使用的
-  有栈协程/纤程或 TBB 风格线程池——那些只能由运行时亲和性守卫（验证工具）覆盖。
+  有栈协程/纤程或 TBB 风格线程池——那些只能由本库之外的运行时亲和性检查覆盖。
 
 验收：只改注释/预处理器的变更；边界测试套件不变；用 `-std=c++20` 编译一个 TU 能看到提示，`-std=c++17` 看不到。
 
 ## R2 - 写者饥饿可观测性（短期，消费方项目）
 
-状态：**库侧已落地**（v0.2.1+）：可选的 `recursive_shared_mutex/instrumented_write_lock.hpp` 提供 RAII 守卫、
+状态：**库侧已落地**（v0.3.0+）：可选的 `recursive_shared_mutex/instrumented_write_lock.hpp` 提供 RAII 守卫、
 `Recorder` 汇接口，以及内置的 `AtomicStatsRecorder`（仅 count/total/max，纯原子操作）。未安装 recorder 时零成本。
 R2 剩余的部分在消费方项目：把 `Recorder` 接到指标栈，并对 p99 写等待告警。
 
@@ -104,5 +104,5 @@ R2 剩余的部分在消费方项目：把 `Recorder` 接到指标栈，并对 p
 ## 待办
 
 - R2 剩下的那一半在消费方项目：把 `Recorder` 接到指标栈，并对 p99 写等待告警。
-- 在真正的 ARM64 硬件上测量，而不是 CI 的预览 runner。
+- 在真正的 ARM64 硬件上测量，而不是 CI 的 ARM64 runner。
 - 若 R2 在生产中显示出饥饿，则做写者优先后端（R4）。

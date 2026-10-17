@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:646e1bab7f3d -->
+<!-- translated-from: README.md sha256:bc6b85bc5cd1 -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -37,7 +37,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run_bench.ps1 -Toolchain b
 唯一的自动合并是 job 自己在几秒前创建的结果分支，且必须每个改动路径都匹配 `benchmarks/results/ci-*.md`。
 人类 PR 只被 gate job *检查*，而该 job 是 `permissions: contents: read`，物理上没有合并权限。
 
-三条刻意的限制：
+刻意的限制与注意事项：
 
 - 绝对 ops/s 属于产出它的那台机器。真正该看的是**同一次运行内**相对 `recursive_mutex` 的加速比。
 - 闸门只和 CI 自己产出的基线比较（文件里写着 `Runner: GitHub Actions`）。手工测的文件在不同硬件上，

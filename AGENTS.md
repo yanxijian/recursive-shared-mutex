@@ -247,8 +247,11 @@ the automation overwrite the desktop files.
   toolchain fixes itself; that red is the instruction to delete the job. Do not
   flip it back into a push-time failure: a permanently red cell teaches everyone
   to ignore red.
-- **Benchmark automation** opens no pull requests and commits only
-  `benchmarks/results/ci-*.md`. Do not add `gh pr merge` to any workflow.
+- **Benchmark automation** commits only `benchmarks/results/ci-*.md`: the
+  scheduled run (`update_mode: auto-merge`, the default) pushes that commit
+  through the API, so no pull request is involved. `update_mode: pull-request`
+  does open one and leaves it for a human - that is the only mode that touches
+  the pull-request list. Do not add `gh pr merge` to any workflow.
 - **Catch2:** assertions must run on the main thread. A failing `REQUIRE` inside
   a `std::thread` escapes as `Catch::TestFailureException` and terminates the
   process instead of failing the case.

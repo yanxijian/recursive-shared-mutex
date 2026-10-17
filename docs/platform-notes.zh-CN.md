@@ -2,7 +2,7 @@
 
 [English](platform-notes.md) · **简体中文**
 
-<!-- translated-from: platform-notes.md sha256:88468a9c2b1f -->
+<!-- translated-from: platform-notes.md sha256:b16769db9fc4 -->
 
 所有数字都在同一台 Windows x64 主机上测得（争用场景 8 线程，`-O2`/`/O2`，非争用场景 2 M 次迭代）。
 绝对值与机器强相关；重要的是**比值**和通过/失败结果。`S7` 的比值取 5 轮交错 1 秒测量的中位数，
@@ -123,7 +123,7 @@ build_and_run.cmd msvc                                     # Windows
 | 2× 嵌套共享 | 108.1 ns | **66.1 ns** |
 | S7 形态 vs `std::recursive_mutex` | 0.068× | **1.523×** |
 | `backend_contract` | **失败**（245 次违规） | **通过**（0） |
-| 完整套件 | 24/25 | **25/25** |
+| 完整套件 | **失败** | **通过** |
 
 在 MSVC 上这个开关实际上是空操作（`std::shared_mutex` 本来就是 SRWLOCK）：5.8 vs 5.7 ns，两种方式契约都通过。
 
@@ -138,7 +138,7 @@ build_and_run.cmd msvc                                     # Windows
 ### 纯 TLS 状态（实例里只放后端）
 
 把 `owner_` / `exclusive_count_` / `under_exclusive_` 搬进槽位表，让对象只有 8 字节、且永不读取线程 id。
-同样 25 个测试在 MSVC、clang 和 MinGW + SRWLOCK 上全部通过：
+同样一套测试在 MSVC、clang 和 MinGW + SRWLOCK 上全部通过：
 
 | | 当前（混合） | 纯 TLS |
 |---|---:|---:|

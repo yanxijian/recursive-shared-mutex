@@ -48,14 +48,14 @@ see nothing; the notice fires exactly when a future bump enables coroutines):
 - Honest limits: nothing compile-time can detect thread migration or
   work-stealing executors (a runtime property), and C++17 does NOT exclude
   C++17-usable stackful coroutines/fibers or TBB-style pools - those are
-  covered only by the runtime affinity guard (validation kit).
+  covered only by runtime affinity checks outside this library.
 
 Acceptance: comment/preprocessor-only change; boundary suite unchanged;
 building one TU with `-std=c++20` shows the notice, `-std=c++17` shows none.
 
 ## R2 - Writer-starvation observability (short term, consuming project)
 
-Status: **library-side landed** (v0.2.1+): opt-in
+Status: **library-side landed** (v0.3.0+): opt-in
 `recursive_shared_mutex/instrumented_write_lock.hpp` provides the RAII guard,
 the `Recorder` sink interface, and a built-in `AtomicStatsRecorder`
 (count/total/max, atomics only). Zero cost when no recorder is installed.
@@ -137,5 +137,5 @@ the standard's trade-off and a fair backend costs readers.
 
 - R2's remaining half lives in the consuming project: bridge the `Recorder` to the
   metrics stack and alert on p99 write-wait.
-- Measure on ARM64 hardware rather than CI's preview runner.
+- Measure on ARM64 hardware rather than CI's ARM64 runner.
 - A writer-preferring backend, if and when R2 shows starvation in production (R4).

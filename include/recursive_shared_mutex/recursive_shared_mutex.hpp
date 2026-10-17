@@ -80,7 +80,7 @@
 //   the same mutex shared. lock() reads that refusal as "this might be an
 //   upgrade attempt". A backend that granted it anyway would let one thread hold
 //   the mutex both ways. SRWLOCK and the pthread rwlocks refuse; a custom backend
-//   must too, and tests/backend_contract.cpp does not cover this one.
+//   must too; tests/backend_contract.cpp check [4] covers it.
 // ESCAPE VALVE: intentionally NOT provided. A release_shared_unchecked()
 //   that skips TLS accounting would leave the owner's slot at {key,
 //   depth=1}; any later RAII unwinding on the owner would then release the
@@ -240,7 +240,7 @@ namespace rsm
 		// shared locks. Measured (MSVC 19.51, x64, uncontended, per lock+unlock):
 		//     held:      1      8     32     64    128    250
 		//     shared:  6.9    9.8   23.8   42.6   80.9  152.9 ns
-		// The exclusive path is constant (5.7 ns at every one of those counts) - it
+		// The exclusive path is constant (4.6 ns, docs/platform-notes.md §1) - it
 		// never scans unless a try_lock was refused. Holding a handful of shared
 		// locks costs nothing worth measuring; holding a hundred is a design smell
 		// (shard the locks, or take one at a time) and this table is the reason.

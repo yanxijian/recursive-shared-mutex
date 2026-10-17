@@ -45,7 +45,7 @@ A shared slot is stranded forever when `unlock_shared()` runs on a thread (or in
 
 An upstream `release_shared_unchecked()` (skip TLS accounting, call the underlying `unlock_shared()` directly) was evaluated and REJECTED: it would leave the owner's slot at `{key, depth=1}` while the underlying lock is already free; any later RAII unwinding on the owner would then release the underlying lock a **second** time - unowned release on the SRWLOCK/pthread path = undefined behavior / heap corruption. It could only ever be used when the owner is guaranteed to never touch the mutex again (thread terminated, task fully cancelled, external guards removed). It is a nuclear button, not a cleanup back door.
 
-The supported mitigation is **homed unlock**: an RAII guard records the acquiring thread; if release is attempted from a foreign thread, never call into the library - flag and warn only, then either ship the unlock back to the owning thread/executor (deferred to the task's own unwind logic; never post into a possibly-stalled queue from the violation handler - that is a secondary deadlock) or accept and report the stranded slot. A reference guard is ~20 lines: store `std::this_thread::id` at acquire, call `unlock_shared()` only when the ids match, never throw from the destructor, and route affinity violations to a flag-and-warn handler.
+The supported mitigation is **homed unlock**: an RAII guard records the acquiring thread; if release is attempted from a foreign thread, never call into the library - flag and warn only, then either ship the unlock back to the owning thread/executor (deferred to the task's own unwind logic; never post into a possibly-stalled queue from the violation handler - that is a secondary deadlock) or accept and report the stranded slot. A reference guard is ~20 lines: store `std::thread::id` at acquire, call `unlock_shared()` only when the ids match, never throw from the destructor, and route affinity violations to a flag-and-warn handler.
 
 ## Test matrix
 
@@ -60,6 +60,8 @@ Covered by `tests/test_recursive_shared_mutex.cpp`:
 - E3 slot recycling across many mutexes + `kSharedSlotCount` cap enforcement
 - E5 `try_lock_shared` injected acquire failure: symmetric to E1
 - T12 `[perf]` holding 64 shared locks does not slow the exclusive path (and an upgrade attempt still throws)
+- T13 the exclusive slow path blocks behind a foreign writer while a shared lock is held elsewhere
+- T14 a foreign thread's `unlock_shared()` is rejected and leaves the owner's slot intact
 
 Framework-free regression tests (no Catch2, one-line compile, used by the cross-platform CI matrix):
 
