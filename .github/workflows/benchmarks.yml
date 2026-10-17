@@ -179,7 +179,7 @@ jobs:
         run: |
           $branch = "bench/refresh-${{ matrix.name }}"
           if ("${{ steps.pr.outcome }}" -eq "success") {
-            Write-Host "Pull request for $branch: ${{ steps.pr.outputs.pull-request-url }}"
+            Write-Host ("Pull request for {0}: {1}" -f $branch, "${{ steps.pr.outputs.pull-request-url }}")
           }
           else {
             $url = "${{ github.server_url }}/${{ github.repository }}/compare/main...$branch?expand=1"
