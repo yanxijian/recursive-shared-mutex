@@ -232,19 +232,19 @@ benchmarks/                       # driver, CI automation, checked-in results
 docs/                             # design, migration, platform notes, roadmap
 scripts/check_repo_rules.py       # the rules AGENTS.md promises CI enforces
 cmake/                            # package config
-.github/                          # ci.yml, platform-matrix.yml, benchmarks.yml
+.github/                          # workflows, issue/PR templates, CONTRIBUTING / SECURITY / CODE_OF_CONDUCT
 AGENTS.md                         # repository rules, one file for every agent
 ```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Please open an issue before large design changes.
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md). Please open an issue before large design changes.
 
 **Working with an AI agent?** The repository rules live in [AGENTS.md](AGENTS.md) - one file for Claude Code, Codex, Cursor, Copilot and anything else, with `CLAUDE.md`, `.cursor/rules/repo.mdc` and `.github/copilot-instructions.md` pointing at it. The rules a program can check (UTF-8 BOM + CRLF, 140 columns, no `#pragma comment(lib)`, header hygiene, version sync, changelog section, and the translated documents staying linked) run in CI on every push via `scripts/check_repo_rules.py`, so they fail the build instead of waiting for review. Run `python3 scripts/check_repo_rules.py --fix` to repair the mechanical ones, and `git config core.hooksPath .githooks` to get them before the commit.
 
 ## Security
 
-See [SECURITY.md](SECURITY.md).
+See [SECURITY.md](.github/SECURITY.md).
 
 ## License
 
