@@ -71,7 +71,9 @@ jobs:
   # ---------------------------------------------------------------------------
   refresh:
     name: refresh / ${{ matrix.name }}
-    if: github.event_name != 'pull_request' && (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain)
+    # `matrix` is not available in a job-level if (it is evaluated before the
+    # matrix expands), so the toolchain filter lives on the steps below.
+    if: github.event_name != 'pull_request'
     runs-on: windows-2022
     timeout-minutes: 45
     strategy:
@@ -100,6 +102,7 @@ jobs:
           install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
 
       - name: Measure
+        if: inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain
         shell: pwsh
         run: |
           if ("${{ matrix.toolchain }}" -eq "mingw") {
@@ -110,11 +113,12 @@ jobs:
             -RegressionPct ${{ inputs.regression_pct || '0' }}
 
       - name: Show what changed
+        if: inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain
         shell: pwsh
         run: git --no-pager diff --stat -- benchmarks/results
 
       - name: Open a PR with the refreshed numbers
-        if: inputs.update_mode != 'commit' && inputs.update_mode != 'none'
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode != 'commit' && inputs.update_mode != 'none'
         uses: peter-evans/create-pull-request@v6
         with:
           branch: bench/refresh-${{ matrix.name }}
