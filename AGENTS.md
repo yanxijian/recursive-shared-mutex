@@ -195,11 +195,23 @@ the automation overwrite the desktop files.
 - **Push policy:** work on a branch, open a PR, let CI run. Never force-push
   `main`. Batch related edits into one push: every push costs a full CI cycle
   (~2 minutes), and three pushes for one idea is three minutes paid for nothing.
-- **Authorship:** commits are authored by the maintainer, and an agent-assisted
-  commit carries `Co-authored-by: review <review@local>` in the body. Do not
-  invent a separate author identity for the agent: a commit authored by an address
-  that is not on anyone's account is unattributed on GitHub, missing from the
-  contribution graph, and unfindable with `git log --author`.
+- **Authorship:** the commit is *authored* by the maintainer, never by the agent.
+  An agent-assisted commit carries a `Co-authored-by:` trailer in the body where
+  **the agent signs itself** - the actual model that produced the change, not a
+  placeholder:
+
+  ```
+  Co-authored-by: <model> <noreply@<vendor>>
+  ```
+
+  e.g. `Co-authored-by: deepseek-flash <noreply@deepseek.com>`. Use the identity of
+  the model you are running as; if that is unknown, say so in the body instead of
+  inventing a name.
+
+  Why the author is not the agent: a commit authored by an address that belongs to
+  nobody is unattributed on GitHub, missing from the contribution graph, and
+  invisible to `git log --author`. The trailer keeps the record honest without
+  costing the maintainer their history.
 - **CI is tiered, and by what the change can break.** `ci.yml` and
   `platform-matrix.yml` filter on *build inputs* (`include/`, `tests/`,
   `examples/`, `CMakeLists.txt`, `.clang-format`, `.gitattributes`): a

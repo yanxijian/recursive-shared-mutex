@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The `Co-authored-by` convention now has the **agent sign itself**: the trailer names the model that produced the change (`Co-authored-by: deepseek-flash <noreply@deepseek.com>`) instead of the placeholder `review <review@local>`. The commit author stays the maintainer, because an address that belongs to nobody is unattributed on GitHub and invisible to `git log --author`.
 - Commit authorship normalised: the 35 commits that had been authored as `review <review@local>` are now authored by the maintainer with `Co-authored-by: review <review@local>` in the body. Same trees, same order, same count - only the author and the trailer differ.
 - CI is filtered by build inputs: `ci.yml` and `platform-matrix.yml` now list the paths that can affect a build, so a documentation or script change starts no compiler. The rules checks moved to a new always-on `hygiene.yml` (line endings, translations, and every relative Markdown link), because those are the checks a documentation change can actually break.
 - The three governance documents moved from the root into `.github/`
