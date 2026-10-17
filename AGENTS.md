@@ -204,9 +204,16 @@ the automation overwrite the desktop files.
   Co-authored-by: <model> <noreply@<vendor>>
   ```
 
-  e.g. `Co-authored-by: deepseek-flash <noreply@deepseek.com>`. Use the identity of
-  the model you are running as; if that is unknown, say so in the body instead of
-  inventing a name.
+  This repository uses
+
+  ```
+  Co-authored-by: deepseek-flash v4.1-flash <noreply@deepseek.com>
+  ```
+
+  Model name plus the deployment version, which comes from the maintainer: an agent
+  cannot read its own deployment identifier, so if a new model is in use the
+  maintainer updates this line. Do not invent a version number; if it is unknown,
+  write the name alone and say so in the body.
 
   Why the author is not the agent: a commit authored by an address that belongs to
   nobody is unattributed on GitHub, missing from the contribution graph, and
