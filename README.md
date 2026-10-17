@@ -29,7 +29,36 @@ void read() {
 - Per-thread **and** per-mutex recursion counts (POD slot table keyed by the mutex address; slots recycled on unlock, no heap allocation)
 - Write→read nesting allowed; read→write upgrade is rejected (`std::system_error`)
 - `try_lock` / `try_lock_shared`
+- `CacheAlignedRecursiveSharedMutex` for sharded arrays: same state machine, 64-byte aligned instance — **2× throughput** when several mutexes sit next to each other (see below)
 - Header-only, CMake `INTERFACE` library (`rsm::recursive_shared_mutex`)
+
+## Sharded arrays: use the cache-aligned variant
+
+The default instance is 24 bytes, so ~2.6 of them share one 64-byte cache line.
+When several mutexes live next to each other (a sharded array/vector), the shards
+false-share the owner/counter updates. Measured with 8 shards and 16 threads
+(0 % / 15 % / 50 % writes, MSVC and MinGW):
+
+| | plain `RecursiveSharedMutex` | `CacheAlignedRecursiveSharedMutex` |
+|---|---:|---:|
+| total ops/s | 13.9–14.3 M | **31.3–33.2 M** (×2.2–2.4) |
+
+```cpp
+std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
+```
+
+It is a separate type instead of the default because 64 bytes per instance is
+wasteful when a mutex is embedded in a per-object struct. Reproduce with
+`bench_rsm --impl rsm_padded --mode sharded`.
+
+## Compile-time knobs
+
+| Macro | Default | Effect |
+|---|---|---|
+| `RSM_SHARED_SLOT_COUNT` | `256` | Per-thread cap on tracked mutexes; one slot is 16 B of TLS, so the default costs 4 KB per thread. Lower it for thread-heavy targets. |
+| `RSM_VERSION_MAJOR/MINOR/PATCH`, `RSM_VERSION` | `0/2/1` | Header version, for consumers that only see the file (FetchContent). Kept in sync with `project(VERSION)`. |
+| `RSM_NO_DEBUG_ASSERT` | off | Disables the debug-only "destroyed while locked" assertion. |
+| `RSM_NO_THREAD_MIGRATION_NOTICE` | off | Silences the C++20 coroutine-mode notice. |
 
 ## Benchmarks vs `std::recursive_mutex`
 
