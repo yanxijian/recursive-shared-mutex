@@ -1,0 +1,48 @@
+---
+description: Repository rules for recursive-shared-mutex - see AGENTS.md at the root, which is the single source of truth for every agent.
+globs: "**/*"
+alwaysApply: true
+---
+
+# recursive-shared-mutex - read AGENTS.md first
+
+[AGENTS.md](mdc:AGENTS.md) holds the full rule set, the reasoning, and a
+provenance table for rules imported from `Volition/.cursor/rules`. This file only
+exists because Cursor needs a `.mdc` entry point with `alwaysApply`.
+
+## Enforced by `scripts/check_repo_rules.py` (fails CI)
+
+- **C/C++ sources: UTF-8 with BOM + CRLF.** `clang-format` writes CRLF
+  (`LineEnding: CRLF`) but never a BOM, and many tools strip it silently.
+  Repair with `python3 scripts/check_repo_rules.py --fix`.
+- **120 columns**, tab-indented; `.clang-format` is the authority. Do not wrap
+  early and do not reflow unrelated files.
+- **No `#pragma comment(lib|linker, ...)`** - link Windows libraries with
+  `target_link_libraries(the_target PRIVATE dwmapi)` in CMake.
+- **Headers:** `#pragma once` as the first significant line, no `using namespace`
+  at namespace scope.
+- **Version:** `project(VERSION x.y.z)` and `RSM_VERSION_MAJOR/MINOR/PATCH` must
+  match.
+- **`CHANGELOG.md`** keeps an `## [Unreleased]` section.
+
+## Correctness rules that need judgement
+
+- The underlying `std::shared_mutex` is **never re-entered by the same thread**
+  (`[thread.sharedmutex]`). Recursion is intercepted in `owner_` /
+  `exclusive_count_` / `under_exclusive_` before the backend is touched.
+- `try_lock` / `try_lock_shared` / `unlock` / `unlock_shared` are `Lockable` /
+  `SharedLockable` members: they must not throw on the "could not acquire" path.
+  Slot-table exhaustion throws from `lock_shared()` and returns `false` from
+  `try_lock_shared()` - that asymmetry is deliberate.
+- No pointer into the per-thread slot table (`thread_local`) may outlive the
+  operation that fetched it, be cached in a member, or cross a thread.
+- Parameter passing: scalars by value, large read-only by `const&`, sinks by
+  value + `std::move`, `string_view` never stored. Review priority:
+  correctness > lifetime > threading > style.
+
+## Not adopted from Volition
+
+`cpp-naming.mdc` (Qt `m_`/`g_`/`s_` prefixes, lowerCamelCase) and
+`cpp-include-guards.mdc` (`__TARGET_FILE_H__` instead of `#pragma once`) do not
+apply here; AGENTS.md records why. Do not reintroduce them without updating that
+provenance table.
