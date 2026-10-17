@@ -58,5 +58,8 @@ powershell -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 3 
 
 `results/ci-<toolchain>.md` - the 4-core GitHub runner, refreshed by the weekly workflow. Kept only so run-to-run drift can be detected and gated on identical hardware; **do not compare these with the files above**.
 
+Each report records the backend it measured (`- Backend: ...`), because MinGW's numbers changed meaning in v0.3.0: it used to be `std::shared_mutex` over winpthreads and is now the native SRWLOCK wrapper. Reports generated before v0.3.0 say `std::shared_mutex` on MinGW and are not comparable with the ones after it.
+
+
 - [results/ci-msvc.md](results/ci-msvc.md)
 - [results/ci-mingw-gcc.md](results/ci-mingw-gcc.md)
