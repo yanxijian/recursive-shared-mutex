@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The agent-signature rule is **advisory and vendor-neutral**: `AGENTS.md` names no model, version or address. Signing as whatever the agent actually is, with or without a version, with or without an address, or not signing at all are all acceptable; the commit author stays the maintainer either way. This supersedes the pinned-identity entry below - the historical trailers keep the signature of the model that produced them, and are not a rule for the next one.
 - The agent signature is pinned to model **and** deployment version: `Co-authored-by: deepseek-flash v4.1-flash <noreply@deepseek.com>`. The version comes from the maintainer because an agent cannot read its own deployment identifier. Historical trailers were normalised to the same string.
 - The `Co-authored-by` convention now has the **agent sign itself**: the trailer names the model that produced the change (`Co-authored-by: deepseek-flash <noreply@deepseek.com>`) instead of the placeholder `review <review@local>`. The commit author stays the maintainer, because an address that belongs to nobody is unattributed on GitHub and invisible to `git log --author`.
 - Commit authorship normalised: the 35 commits that had been authored as `review <review@local>` are now authored by the maintainer with `Co-authored-by: review <review@local>` in the body. Same trees, same order, same count - only the author and the trailer differ.
