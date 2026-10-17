@@ -1,5 +1,7 @@
 # recursive-shared-mutex
 
+**English** · [简体中文](README.zh-CN.md)
+
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -115,6 +117,8 @@ the spread matters):
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/run_bench.ps1 -Toolchain both -Seconds 3 -Repeats 3
 ```
+
+A Simplified Chinese edition of this document lives at [README.zh-CN.md](README.zh-CN.md); English stays the default.
 
 ## Requirements
 
@@ -236,7 +240,7 @@ AGENTS.md                         # repository rules, one file for every agent
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Please open an issue before large design changes.
 
-**Working with an AI agent?** The repository rules live in [AGENTS.md](AGENTS.md) - one file for Claude Code, Codex, Cursor, Copilot and anything else, with `CLAUDE.md`, `.cursor/rules/repo.mdc` and `.github/copilot-instructions.md` pointing at it. The rules a program can check (UTF-8 BOM + CRLF, 140 columns, no `#pragma comment(lib)`, header hygiene, version sync, changelog section) run in CI on every push via `scripts/check_repo_rules.py`, so they fail the build instead of waiting for review. Run `python3 scripts/check_repo_rules.py --fix` to repair the mechanical ones, and `git config core.hooksPath .githooks` to get them before the commit.
+**Working with an AI agent?** The repository rules live in [AGENTS.md](AGENTS.md) - one file for Claude Code, Codex, Cursor, Copilot and anything else, with `CLAUDE.md`, `.cursor/rules/repo.mdc` and `.github/copilot-instructions.md` pointing at it. The rules a program can check (UTF-8 BOM + CRLF, 140 columns, no `#pragma comment(lib)`, header hygiene, version sync, changelog section, and the translated documents staying linked) run in CI on every push via `scripts/check_repo_rules.py`, so they fail the build instead of waiting for review. Run `python3 scripts/check_repo_rules.py --fix` to repair the mechanical ones, and `git config core.hooksPath .githooks` to get them before the commit.
 
 ## Security
 
