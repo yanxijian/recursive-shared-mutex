@@ -9,7 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `rsm::CacheAlignedRecursiveSharedMutex`: a 64-byte-aligned instance for sharded arrays. The default instance is 24 bytes, so ~2.6 of them share a cache line and the shards false-share the owner/counter updates. Measured with 8 shards / 16 threads (0 %, 15 %, 50 % writes): 13.9–14.3 M → 31.3–33.2 M total ops/s on MSVC, 28.1 M → 57.3 M on MinGW. New benchmark implementation `--impl rsm_padded` (meaningful with `--mode sharded`).
+- `RSM_VERSION_MAJOR/MINOR/PATCH` and `RSM_VERSION`: the header now carries its own version, for consumers that pull it with `FetchContent` and cannot see the CMake package.
+- `RSM_SHARED_SLOT_COUNT` override: the per-thread slot table cap is now a macro (default unchanged at 256, i.e. 4 KB of TLS per thread), so thread-heavy or embedded targets can shrink it.
+- `RSM_BUILD_STRESS` CMake option: builds `tests/stress_concurrent.cpp` as `rsm_stress` and registers it as a test. It used to be built by hand, which is how such drivers rot.
+- Debug-only assertion in the destructor (`owner_` / exclusive counters non-zero) so "destroyed while locked" fails at the point of misuse instead of corrupting a later mutex at the same address. Disable with `RSM_NO_DEBUG_ASSERT`.
 - Writer-starvation observability (roadmap R2): optional opt-in header `recursive_shared_mutex/instrumented_write_lock.hpp` with an RAII `instrumented_write_lock` guard that measures write WAIT (blocked acquisition) and HOLD (exclusive critical section) and reports them to a pluggable `Recorder` sink (built-in `AtomicStatsRecorder`: count/total/max, atomics only). Zero cost when no recorder is installed (even clock reads are skipped), core component untouched, constructor-failure (fail-fast) records nothing, destructor is noexcept, and sink exceptions are swallowed. Intended to feed `rsm_write_wait_seconds` / `rsm_write_hold_seconds` histograms (see `docs/roadmap.md` R2).
+
+### Fixed
+
+- The project version reported `0.1.0` while releases were at `v0.2.1`, so `find_package(recursive_shared_mutex 0.2 REQUIRED)` failed against an installed tree. `project(VERSION)` now matches the header's `RSM_VERSION_*`.
+- `tests/test_recursive_shared_mutex.cpp` asserted with `REQUIRE` inside a spawned thread. Catch2 assertions must run on the main thread: a failing one escapes as `Catch::TestFailureException` and terminates the whole test process instead of failing the case. The observation is now recorded in a bool and asserted after `join()`.
+
 ## [v0.2.1] - 2026-10-16
 
 ### Performance
