@@ -166,9 +166,12 @@ the automation overwrite the desktop files.
 - **`RSM_BACKEND_STD` is the wrong default on MinGW.** libstdc++'s
   `std::shared_mutex` there is built on winpthreads, which grants two exclusive
   owners, so the header auto-selects the native SRWLOCK backend on `__MINGW32__`.
-  Two CI cells build with `-DRSM_BACKEND_STD` on purpose and stay red; they prove
-  the toolchain defect still exists. Do not "fix" that red by deleting the cells -
-  if they ever pass, the toolchain fixed itself and the cells can go.
+  One weekly job - `expected-fail / mingw winpthreads (red = upstream fixed)` -
+  builds the probe binary with `-DRSM_BACKEND_STD` and asserts the contract is
+  **still violated**. It is green while the defect exists and turns red when the
+  toolchain fixes itself; that red is the instruction to delete the job. Do not
+  flip it back into a push-time failure: a permanently red cell teaches everyone
+  to ignore red.
 - **Benchmark automation** opens no pull requests and commits only
   `benchmarks/results/ci-*.md`. Do not add `gh pr merge` to any workflow.
 - **Catch2:** assertions must run on the main thread. A failing `REQUIRE` inside
