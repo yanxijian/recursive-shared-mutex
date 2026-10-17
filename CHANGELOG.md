@@ -20,11 +20,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `tests/backend_contract.cpp`: framework-free check that the current toolchain's `std::shared_mutex` actually honours mutual exclusion. MinGW-w64 GCC 13.2 over winpthreads fails it (~1/1200 successful `try_lock` acquisitions grant two owners).
+- `RSM_BACKEND_SRWLOCK`: opt-in backend policy that swaps `std::shared_mutex` for an 8-byte SRWLOCK wrapper (`rsm::detail::SrwLockBackend`, exposed as `RecursiveSharedMutex::backend_type`). It is what makes the component usable on MinGW-w64: exclusive `lock+unlock` 62.8 → 23.4 ns/pair, the exclusive-only benchmark ratio 0.067× → 1.52×, and `tests/backend_contract.cpp` goes from 245 violations to zero. No-op on MSVC (whose `std::shared_mutex` is already SRWLOCK); requires Windows Vista+; default behaviour is unchanged on every other platform.
+- `tests/backend_contract.cpp`: framework-free check that the mutex the library is actually built on honours mutual exclusion. It reports the backend (`std::shared_mutex` vs `SrwLockBackend`), so CI can prove the switch fixes the MinGW cell.
 - `tests/mutual_exclusion.cpp`: framework-free check that the library keeps writers mutually exclusive and readers out while a writer is inside — a property the existing suite did not assert.
-- `.github/workflows/platform-matrix.yml`: cross-platform CI matrix (MSVC x64/x86, clang-cl, MinGW-UCRT64, gcc-11/13, clang+libstdc++, clang+libc++, macOS arm64/x86_64, Linux arm64, alpine/musl, TSAN/ASAN+UBSAN, C++20 notice assertion, and a shared-library TLS-domain job). The backend contract test runs first in every cell.
+- `.github/workflows/platform-matrix.yml`: cross-platform CI matrix (MSVC x64/x86 and x64+SRWLOCK, clang-cl, MinGW-UCRT64 default *and* with `RSM_BACKEND_SRWLOCK`, gcc-11/13, clang+libstdc++, clang+libc++, macOS arm64/x86_64, Linux arm64, alpine/musl, TSAN/ASAN+UBSAN, C++20 notice assertion, shared-library TLS domain). The backend contract test runs first in every cell; the two MinGW cells that use the unsound default backend are marked `continue-on-error` with the reason.
 - `examples/cross_module_hazard/`: a real DLL/.so reproducer for the per-module TLS table, showing that the same thread re-acquires the backend inside the second module (undefined behaviour that is silent on SRWLOCK and on reader-preferring rwlocks).
-- `docs/platform-notes.md`: measured three-toolchain data (MinGW-GCC 13.2 / MSVC 19.51 / clang 22.1), the backend contract results, and reproduction commands.
+- `docs/platform-notes.md`: measured three-toolchain data (MinGW-GCC 13.2 / MSVC 19.51 / clang 22.1), the backend contract results, the before/after of the SRWLOCK switch, and reproduction commands.
 
 ### Added
 

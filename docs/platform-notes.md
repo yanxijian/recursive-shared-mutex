@@ -1,10 +1,10 @@
-# Platform notes: measured behaviour per toolchain
+﻿# Platform notes: measured behaviour per toolchain
 
 All numbers were measured on one Windows x64 host (8 threads for the contended
 runs, `-O2`/`/O2`, 2 M iterations for the uncontended runs). Absolute numbers are
 machine-specific; the *ratios* and the pass/fail results are what matter, and the
 `S7` ratios were taken as the median of 5 interleaved 1 s rounds because
-single-shot numbers on this host swing by 1.1×–3.2×.
+single-shot numbers on this host swing by 1.1Ã—â€“3.2Ã—.
 
 ## 1. Uncontended cost (ns per lock/unlock pair)
 
@@ -12,21 +12,21 @@ single-shot numbers on this host swing by 1.1×–3.2×.
 |---|---:|---:|---:|
 | `rsm::RecursiveSharedMutex` exclusive | 61.5 | 5.8 | 5.9 |
 | `rsm::RecursiveSharedMutex` shared | 73.7 | 7.2 | 7.4 |
-| nested exclusive (×2) | 71.4 | 9.9 | 10.6 |
-| nested shared (×2) | 105.2 | 12.0 | 11.2 |
+| nested exclusive (Ã—2) | 71.4 | 9.9 | 10.6 |
+| nested shared (Ã—2) | 105.2 | 12.0 | 11.2 |
 | `std::recursive_mutex` | 12.5 | 4.7 | 4.7 |
 | `std::shared_mutex` (the backend floor) | 37.4 | 3.3 | 3.2 |
 | `sizeof(std::thread::id)` | 8 | 4 | 4 |
 | `sizeof(rsm::RecursiveSharedMutex)` | 24 | 24 | 24 |
 | `sizeof(std::recursive_mutex)` | 8 | 80 | 80 |
 
-Reading: the wrapper costs ≈1.7× its backend on every toolchain, but the
-*absolute* cost is dominated by the backend (11× slower on MinGW) and by TLS
+Reading: the wrapper costs â‰ˆ1.7Ã— its backend on every toolchain, but the
+*absolute* cost is dominated by the backend (11Ã— slower on MinGW) and by TLS
 access (emutls on MinGW is an order of magnitude more expensive than the
 `__declspec(thread)`/TLS-descriptor paths used by MSVC and clang). On MSVC/clang
-the whole component is within 25 % of `std::recursive_mutex`; on MinGW it is 5×
+the whole component is within 25 % of `std::recursive_mutex`; on MinGW it is 5Ã—
 slower. Note that the shared path is *more* expensive than the exclusive path
-when uncontended — the TLS slot lookup has to pay for itself with real reader
+when uncontended â€” the TLS slot lookup has to pay for itself with real reader
 concurrency.
 
 ## 2. Exclusive-only path (the benchmarks' S7 shape)
@@ -36,12 +36,12 @@ concurrency.
 
 | Toolchain | `recursive_mutex` | this library | ratio |
 |---|---:|---:|---:|
-| MSVC 19.51 | 8,167,734 ops/s | 9,532,459 ops/s | **1.17×** |
-| clang 22.1 (MSVC STL) | 8,068,846 ops/s | 11,468,567 ops/s | **1.42×** |
-| MinGW-GCC 13.2 | 4,986,027 ops/s | 335,929 ops/s | **0.067×** |
+| MSVC 19.51 | 8,167,734 ops/s | 9,532,459 ops/s | **1.17Ã—** |
+| clang 22.1 (MSVC STL) | 8,068,846 ops/s | 11,468,567 ops/s | **1.42Ã—** |
+| MinGW-GCC 13.2 | 4,986,027 ops/s | 335,929 ops/s | **0.067Ã—** |
 
-The checked-in benchmark tables report 0.93× (MSVC) and 0.10× (MinGW); both are
-in the right ballpark — the MinGW cell is if anything worse in this harness. The
+The checked-in benchmark tables report 0.93Ã— (MSVC) and 0.10Ã— (MinGW); both are
+in the right ballpark â€” the MinGW cell is if anything worse in this harness. The
 MinGW run also threw spurious `operation_not_permitted` twice during the five
 rounds, which is the symptom described in section 3.
 
@@ -56,7 +56,7 @@ hold the write lock. An 8-thread storm with a ~200 ns critical section:
 |---|---:|---:|
 | MSVC 19.51 | 0 / 134,371 | 0 / 294,219 |
 | clang 22.1 (MSVC STL) | 0 / 200,927 | 0 / 323,282 |
-| MinGW-GCC 13.2 | **3–171 / ~140,000** | **268–502 / ~500,000** |
+| MinGW-GCC 13.2 | **3â€“171 / ~140,000** | **268â€“502 / ~500,000** |
 | clang 22.1 + libstdc++/winpthreads | **135 / 140,080** | **268 / 489,375** |
 
 The defect follows the runtime, not the compiler frontend. Consequences for this
@@ -64,7 +64,7 @@ library:
 
 - `try_lock()` can return `true` for a thread that does not own the mutex, so
   `owner_` / `exclusive_count_` get clobbered by the "second owner", and the real
-  owner's `unlock()` throws `operation_not_permitted` (≈1 event per 50,000
+  owner's `unlock()` throws `operation_not_permitted` (â‰ˆ1 event per 50,000
   successful acquisitions). This is inherited, not caused by the wrapper.
 - Benchmarks whose readers spin on `try_lock`/`try_lock_shared` (all of
   `benchmarks/bench_vs_recursive_mutex.cpp`) are measuring a broken primitive on
@@ -72,7 +72,7 @@ library:
 
 `tests/backend_contract.cpp` checks this in one file with no dependencies; it is
 the first job in the CI matrix. It also passes when one thread holds the lock and
-another probes with `try_lock`, so a "steady holder" test will not catch it — the
+another probes with `try_lock`, so a "steady holder" test will not catch it â€” the
 window is the `unlock`/`try_lock` interleaving.
 
 ## 4. Other configurations measured
@@ -87,7 +87,7 @@ window is the `unlock`/`try_lock` interleaving.
 | clang + libstdc++/winpthreads | **fail** | pass |
 
 32-bit detail: `sizeof(rsm::RecursiveSharedMutex)` drops to 16, `lock+unlock` is
-7.9 ns and `std::recursive_mutex` 9.7 ns — on that configuration the wrapper is
+7.9 ns and `std::recursive_mutex` 9.7 ns â€” on that configuration the wrapper is
 faster than what it replaces.
 
 Not covered here (only reachable from Linux/macOS CI): glibc and musl rwlock
@@ -112,3 +112,28 @@ cmake -S . -B build -DRSM_BUILD_TESTS=ON && cmake --build build && ctest --test-
 cd examples/cross_module_hazard && ./build_and_run.sh     # Linux/macOS
 build_and_run.cmd msvc                                     # Windows
 ```
+
+## 6. The SRWLOCK backend switch (MinGW fix)
+
+`-DRSM_BACKEND_SRWLOCK` replaces `std::shared_mutex` with an 8-byte SRWLOCK
+wrapper inside the same class (default behaviour is unchanged). Measured on
+MinGW-w64 GCC 13.2, same binary layout, same tests:
+
+| | default (`std::shared_mutex`) | `RSM_BACKEND_SRWLOCK` |
+|---|---:|---:|
+| `lock+unlock` | 62.8 ns/pair | **23.4 ns/pair** (2.7×) |
+| `lock_shared+unlock_shared` | 76.4 ns/pair | **35.1 ns/pair** (2.2×) |
+| 2× nested exclusive | 70.9 ns | **32.9 ns** |
+| 2× nested shared | 108.1 ns | **66.1 ns** |
+| S7 shape vs `std::recursive_mutex` | 0.068× | **1.523×** |
+| `backend_contract` | **fails** (245 violations) | **passes** (0) |
+| full suite | 23/24 | **24/24** |
+
+On MSVC the switch is a no-op in effect (`std::shared_mutex` already is SRWLOCK):
+5.8 vs 5.7 ns, contract passes either way.
+
+What it does **not** fix: the ~20 ns of wrapper overhead that remains on MinGW is
+the TLS/emutls cost of the slot table (`sizeof(RecursiveSharedMutex)` is 24 B on
+both backends). Removing that needs the "instance holds nothing but the backend"
+refactor — measured at ≈40 ns total on the std backend and ≈4 ns with SRWLOCK in
+a prototype, i.e. it is the next 3× on that platform, not this one.

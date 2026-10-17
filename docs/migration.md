@@ -35,7 +35,7 @@ Shared depth is not stored in `thread_local unordered_map` (allocator path under
 - Writer starvation: `std::shared_mutex` has no writer preference. Under continuous readers, writers may starve (see benchmarks S1/S5); add upstream throttling/yielding if writes have latency requirements.
 - Per-thread cap: at most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread (≈4 KB TLS per thread). The next `lock_shared` throws `resource_unavailable_try_again`; `try_lock_shared` returns `false` instead, so `std::shared_lock(mtx, std::try_to_lock)` stays usable. Slots recycle on unlock, so sequentially touching any number of mutexes is fine.
 - No `std::condition_variable_any` once recursion depth > 1: `wait()` unlocks only one level, the mutex stays held and the waiting thread never wakes.
-- The backend must honour mutual exclusion (`try_lock` grants at most one owner, no reader inside while a writer is). MinGW-w64 GCC 13.2 over winpthreads does not; see `docs/platform-notes.md` and run `tests/backend_contract.cpp` on the target toolchain before migrating.
+- The backend must honour mutual exclusion (`try_lock` grants at most one owner, no reader inside while a writer is). MinGW-w64 GCC 13.2 over winpthreads does not; `-DRSM_BACKEND_SRWLOCK` replaces it with a native SRWLOCK and fixes both the correctness defect and the 5×–15× exclusive-path regression (see `docs/platform-notes.md` §6). Run `tests/backend_contract.cpp` on the target toolchain before migrating.
 
 ## Stranded slots and the rejected escape valve
 

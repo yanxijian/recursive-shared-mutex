@@ -1,4 +1,8 @@
-// Backend contract check for std::shared_mutex.
+// Backend contract check for the mutex the library is built on.
+//
+// With RSM_BACKEND_SRWLOCK this checks the SRWLOCK backend; otherwise it checks
+// std::shared_mutex. Build both on Windows/MinGW: the flag is what makes the
+// contract hold there.
 //
 // Purpose: `rsm::RecursiveSharedMutex` (and any recursive shared mutex) is only
 // as correct as its backend. On MinGW-w64 GCC 13.2 (libstdc++ over winpthreads)
@@ -20,6 +24,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <recursive_shared_mutex/recursive_shared_mutex.hpp>
 #include <shared_mutex>
 #include <string>
 #include <thread>
@@ -27,6 +32,19 @@
 
 namespace
 {
+
+	// The backend the library is actually built on. With RSM_BACKEND_SRWLOCK
+	// this is rsm::detail::SrwLockBackend, otherwise std::shared_mutex.
+	using Backend = rsm::RecursiveSharedMutex::backend_type;
+
+	const char* backendName()
+	{
+#if defined(RSM_BACKEND_SRWLOCK)
+		return "rsm::detail::SrwLockBackend (RSM_BACKEND_SRWLOCK)";
+#else
+		return "std::shared_mutex";
+#endif
+	}
 
 	struct Options
 	{
@@ -69,7 +87,7 @@ namespace
 		long long ops = 0;
 		for (int r = 0; r < opt.rounds; ++r)
 		{
-			std::shared_mutex m;
+			Backend m;
 			std::atomic<int> inside{0};
 			std::atomic<long long> localOps{0};
 			std::atomic<bool> go{false};
@@ -117,7 +135,7 @@ namespace
 		long long ops = 0;
 		for (int r = 0; r < opt.rounds; ++r)
 		{
-			std::shared_mutex m;
+			Backend m;
 			std::atomic<int> writers{0};
 			std::atomic<long long> localOps{0};
 			std::atomic<bool> go{false};
@@ -176,7 +194,7 @@ namespace
 	// (3) Sanity: try_lock must fail while another thread holds the lock.
 	bool tryLockRespectsHolder()
 	{
-		std::shared_mutex m;
+		Backend m;
 		m.lock();
 		bool lied = false;
 		std::thread prober([&] {
@@ -226,8 +244,9 @@ namespace
 int main(int argc, char** argv)
 {
 	const Options opt = parse(argc, argv);
-	std::printf("std::shared_mutex backend contract\n  toolchain: %s\n  threads=%d iters=%d rounds=%d\n",
-	            toolchain().c_str(), opt.threads, opt.iters, opt.rounds);
+	std::printf(
+	    "shared_mutex backend contract\n  backend: %s (sizeof=%zu)\n  toolchain: %s\n  threads=%d iters=%d rounds=%d\n",
+	    backendName(), sizeof(Backend), toolchain().c_str(), opt.threads, opt.iters, opt.rounds);
 
 	const long long v1 = exclusiveVsExclusive(opt);
 	const long long v2 = writerVsReader(opt);

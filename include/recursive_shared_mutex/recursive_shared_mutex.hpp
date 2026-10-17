@@ -44,8 +44,9 @@
 //   writer is. MinGW-w64 GCC 13.2 (libstdc++ over winpthreads) violates that:
 //   two threads can both "acquire" the write lock under a try_lock storm, and
 //   this class then throws spurious system_error from unlock() (or corrupts the
-//   accounting) through no fault of its own. tests/backend_contract.cpp checks
-//   the contract on the current toolchain; run it before trusting a new one.
+//   accounting) through no fault of its own. RSM_BACKEND_SRWLOCK (above) is the
+//   supported fix on that toolchain. tests/backend_contract.cpp checks the
+//   contract on the current toolchain; run it before trusting a new one.
 //   docs/platform-notes.md has the measured matrix.
 // ESCAPE VALVE: intentionally NOT provided. A release_shared_unchecked()
 //   that skips TLS accounting would leave the owner's slot at {key,
@@ -76,12 +77,92 @@
                 "safe. See the THREAD-BINDING CONSTRAINT above.")
 #endif
 
+// BACKEND SELECTION: define RSM_BACKEND_SRWLOCK to use the Win32 SRWLOCK
+//   directly instead of std::shared_mutex.
+//   - On MSVC this is a no-op in practice (std::shared_mutex already *is*
+//     SRWLOCK), so it only matters for code that wants the guarantee explicit.
+//   - On MinGW-w64 it avoids libstdc++'s winpthreads rwlock, which is ~11x
+//     slower than a native SRWLOCK and - more importantly - does not keep
+//     try_lock() mutually exclusive (see docs/platform-notes.md). With
+//     RSM_BACKEND_SRWLOCK the exclusive path drops from ~61 ns to ~4 ns per
+//     lock/unlock pair and tests/backend_contract.cpp passes.
+//   SRWLOCK is non-recursive in exclusive mode; this class never re-enters its
+//   backend (every recursion is intercepted before the backend call), so that
+//   restriction does not apply. Requires Windows Vista or later.
+#if defined(RSM_BACKEND_SRWLOCK)
+#if !defined(_WIN32)
+#error "RSM_BACKEND_SRWLOCK is only supported on Windows"
+#endif
+#if !defined(WIN32_LEAN_AND_MEAN)
+#define WIN32_LEAN_AND_MEAN
+#endif
+#if !defined(NOMINMAX)
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 namespace rsm
 {
+
+	namespace detail
+	{
+
+#if defined(RSM_BACKEND_SRWLOCK)
+		// Minimal SharedMutex surface over SRWLOCK. No timed operations, no
+		// recursion; exactly what RecursiveSharedMutex needs.
+		class SrwLockBackend
+		{
+		public:
+			SrwLockBackend() = default;
+			SrwLockBackend(const SrwLockBackend&) = delete;
+			SrwLockBackend& operator=(const SrwLockBackend&) = delete;
+
+			void lock() noexcept
+			{
+				AcquireSRWLockExclusive(&lock_);
+			}
+			bool try_lock() noexcept
+			{
+				return TryAcquireSRWLockExclusive(&lock_) != 0;
+			}
+			void unlock() noexcept
+			{
+				ReleaseSRWLockExclusive(&lock_);
+			}
+
+			void lock_shared() noexcept
+			{
+				AcquireSRWLockShared(&lock_);
+			}
+			bool try_lock_shared() noexcept
+			{
+				return TryAcquireSRWLockShared(&lock_) != 0;
+			}
+			void unlock_shared() noexcept
+			{
+				ReleaseSRWLockShared(&lock_);
+			}
+
+		private:
+			SRWLOCK lock_ = SRWLOCK_INIT;
+		};
+
+		using backend_type = SrwLockBackend;
+#else
+		using backend_type = std::shared_mutex;
+#endif
+
+	} // namespace detail
 
 	class RecursiveSharedMutex
 	{
 	public:
+		// The underlying backend: std::shared_mutex, or detail::SrwLockBackend
+		// when RSM_BACKEND_SRWLOCK is defined. Exposed so tests (and callers
+		// who need `sizeof`) can see which one is in use.
+		using backend_type = detail::backend_type;
+
 		// Per-thread cap on distinct mutexes tracked for shared recursion.
 		// Slots are recycled as soon as a shared lock depth drops to zero,
 		// so the working set is the number of *currently held* shared locks,
@@ -331,7 +412,7 @@ namespace rsm
 			return slot != nullptr ? slot->depth : 0;
 		}
 
-		std::shared_mutex mtx_;
+		backend_type mtx_;
 		std::atomic<std::thread::id> owner_{};
 		int exclusive_count_ = 0;
 		int under_exclusive_ = 0;

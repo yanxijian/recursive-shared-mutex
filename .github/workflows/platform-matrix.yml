@@ -32,8 +32,9 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # 1. Backend contract: does std::shared_mutex honour mutual exclusion here?
-  #    Catches: MinGW/libstdc++/winpthreads (2 owners under try_lock storms).
+  # 1. Backend contract: does the mutex the library is built on honour mutual
+  #    exclusion here? Catches MinGW/libstdc++/winpthreads (two owners under a
+  #    try_lock storm) and proves that -DRSM_BACKEND_SRWLOCK fixes it.
   # ---------------------------------------------------------------------------
   contract-windows:
     name: contract / windows / ${{ matrix.name }}
@@ -44,6 +45,7 @@ jobs:
       matrix:
         include:
           - { name: msvc-x64, toolset: msvc }
+          - { name: msvc-x64-srwlock, toolset: msvc, defs: "/DRSM_BACKEND_SRWLOCK" }
           - { name: clang-cl, toolset: clang-cl }
     steps:
       - uses: actions/checkout@v4
@@ -54,9 +56,9 @@ jobs:
         shell: pwsh
         run: |
           $cxx = if ("${{ matrix.toolset }}" -eq "clang-cl") { "clang-cl" } else { "cl" }
-          $defs = "/O2 /std:c++17 /EHsc /Iinclude"
-          & $cxx $defs.Split(' ') tests/backend_contract.cpp /Fe:backend_contract.exe
-          & $cxx $defs.Split(' ') tests/mutual_exclusion.cpp   /Fe:mutual_exclusion.exe
+          $defs = "/O2 /std:c++17 /EHsc /Iinclude ${{ matrix.defs }}"
+          & $cxx $defs.Split(' ', [StringSplitOptions]::RemoveEmptyEntries) tests/backend_contract.cpp /Fe:backend_contract.exe
+          & $cxx $defs.Split(' ', [StringSplitOptions]::RemoveEmptyEntries) tests/mutual_exclusion.cpp   /Fe:mutual_exclusion.exe
           .\backend_contract.exe --rounds 15 --iters 3000
           if ($LASTEXITCODE -ne 0) { throw "backend contract violated on $cxx" }
           .\mutual_exclusion.exe --iters 20000
@@ -64,11 +66,10 @@ jobs:
 
   contract-mingw:
     # Known red: libstdc++ over winpthreads grants two exclusive owners under a
-    # try_lock storm (docs/platform-notes.md §3), so this cell is expected to
-    # fail until a native backend exists. It is kept - and marked
+    # try_lock storm (docs/platform-notes.md §3). Kept - and marked
     # continue-on-error so it does not mask new failures - precisely because a
-    # silent defect is worse than a red job. Flip to false once the backend
-    # policy (SRWLOCK on MinGW) lands.
+    # silent defect is worse than a red job. The fixed cell is the next job:
+    # same toolchain, -DRSM_BACKEND_SRWLOCK, must be green.
     name: contract / windows / mingw-ucrt64 (known red)
     runs-on: windows-latest
     timeout-minutes: 20
@@ -86,6 +87,27 @@ jobs:
         run: |
           g++ -O2 -std=c++17 -pthread -Iinclude tests/backend_contract.cpp -o backend_contract.exe
           g++ -O2 -std=c++17 -pthread -Iinclude tests/mutual_exclusion.cpp   -o mutual_exclusion.exe
+          ./backend_contract.exe --rounds 15 --iters 3000
+          ./mutual_exclusion.exe --iters 20000
+
+  contract-mingw-srwlock:
+    # The supported configuration on MinGW: native SRWLOCK backend. Must pass.
+    name: contract / windows / mingw-ucrt64 + RSM_BACKEND_SRWLOCK
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+      - name: Compile + run contract tests
+        shell: msys2 {0}
+        run: |
+          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_SRWLOCK -Iinclude tests/backend_contract.cpp -o backend_contract.exe
+          g++ -O2 -std=c++17 -pthread -DRSM_BACKEND_SRWLOCK -Iinclude tests/mutual_exclusion.cpp   -o mutual_exclusion.exe
           ./backend_contract.exe --rounds 15 --iters 3000
           ./mutual_exclusion.exe --iters 20000
 
@@ -121,10 +143,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: msvc-x64-release, arch: x64, cfg: Release }
-          - { name: msvc-x64-debug,   arch: x64, cfg: Debug }
-          - { name: msvc-x86-release, arch: x86, cfg: Release }
-          - { name: clang-cl-x64,     arch: x64, cfg: Release, clang: true }
+          - { name: msvc-x64-release,     arch: x64, cfg: Release }
+          - { name: msvc-x64-debug,       arch: x64, cfg: Debug }
+          - { name: msvc-x86-release,     arch: x86, cfg: Release }
+          - { name: msvc-x64-srwlock,     arch: x64, cfg: Release, flags: "-DRSM_BACKEND_SRWLOCK" }
+          - { name: clang-cl-x64,         arch: x64, cfg: Release, toolset: "-T ClangCL" }
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
@@ -132,9 +155,12 @@ jobs:
           arch: ${{ matrix.arch }}
       - name: Configure
         shell: pwsh
+        # NOTE: the Visual Studio generator ignores $env:CXX; the compiler is
+        # selected with -T ClangCL, not by setting CXX.
         run: |
-          $env:CXX = if ("${{ matrix.clang }}") { "clang-cl" } else { "cl" }
           cmake -S . -B build -G "Visual Studio 17 2022" -A ${{ matrix.arch }} `
+                ${{ matrix.toolset }} `
+                -DCMAKE_CXX_FLAGS="${{ matrix.flags }}" `
                 -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
       - name: Build + test
         shell: pwsh
@@ -143,8 +169,9 @@ jobs:
           ctest --test-dir build -C ${{ matrix.cfg }} --output-on-failure --timeout 180
 
   build-mingw:
-    # Same known-red backend: the full suite includes backend_contract, so this
-    # cell fails until the backend policy lands. The other 23 tests pass.
+    # Default backend (libstdc++/winpthreads): known red, see the contract job
+    # above. Kept so the defect stays visible; the fixed cell is the next job,
+    # which uses the same toolchain with RSM_BACKEND_SRWLOCK.
     name: suite / windows / mingw-ucrt64 (known red)
     runs-on: windows-latest
     timeout-minutes: 30
@@ -163,6 +190,30 @@ jobs:
         shell: msys2 {0}
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure --timeout 180
+
+  build-mingw-srwlock:
+    # The fix: same toolchain, native SRWLOCK backend. This cell must be green.
+    name: suite / windows / mingw-ucrt64 + RSM_BACKEND_SRWLOCK
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+      - name: Configure, build, test
+        shell: msys2 {0}
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_CXX_FLAGS=-DRSM_BACKEND_SRWLOCK \
                 -DRSM_BUILD_TESTS=ON -DRSM_BUILD_EXAMPLES=ON
           cmake --build build
           ctest --test-dir build --output-on-failure --timeout 180
