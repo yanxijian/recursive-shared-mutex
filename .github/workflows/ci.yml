@@ -56,3 +56,27 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure --timeout 120
+
+  install-package:
+    # The one path the rest of this workflow never takes: install into a prefix
+    # and consume the package from it. R5 exists because the version pair broke
+    # find_package() once; nothing has exercised it since.
+    name: install + find_package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install into a prefix
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          cmake --install build --prefix "$RUNNER_TEMP/prefix"
+
+      - name: Consume it as a downstream project
+        run: |
+          cmake -S tests/consumer -B build-consumer \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/prefix"
+          cmake --build build-consumer
+          ./build-consumer/rsm_consumer

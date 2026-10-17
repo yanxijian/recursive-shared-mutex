@@ -58,6 +58,7 @@ jobs:
           tests/backend_contract.cpp
           tests/mutual_exclusion.cpp
           tests/stress_concurrent.cpp
+          tests/consumer/main.cpp
           examples/basic_usage.cpp
           examples/cross_module_hazard/dll_side.cpp
           examples/cross_module_hazard/exe_side.cpp
