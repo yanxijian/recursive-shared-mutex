@@ -216,8 +216,9 @@ the automation overwrite the desktop files.
     GitHub, missing from the contribution graph, and invisible to
     `git log --author`.
 
-  (The commits already in this history carry `deepseek-flash v4.1-flash` - that is
-  the model that actually produced them, not a rule for the next one.)
+  (The commits already in this history carry `DeepSeek v4.1-flash` - that is the
+  model that actually produced them, not a rule for the next one. One spelling, so
+  the history does not read as two different agents.)
 - **CI is tiered, and by what the change can break.** `ci.yml` and
   `platform-matrix.yml` filter on *build inputs* (`include/`, `tests/`,
   `examples/`, `CMakeLists.txt`, `.clang-format`, `.gitattributes`): a
