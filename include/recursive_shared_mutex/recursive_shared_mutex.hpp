@@ -18,9 +18,9 @@
 //   RSM_SHARED_SLOT_COUNT (default 256)
 //     Per-thread cap on distinct mutexes tracked for shared recursion. One slot
 //     is 16 bytes of thread-local storage, so the default costs 4 KB per thread
-//     that ever takes a shared lock. Lower it (64 -> 1 KB) on thread-heavy or
-//     embedded targets; raise it if one thread really holds more than 256
-//     distinct shared locks at once.
+//     that ever locks - lock() and try_lock() read the table too, not just
+//     readers. Lower it (64 -> 1 KB) on thread-heavy or embedded targets; raise
+//     it if one thread really holds more than 256 distinct shared locks at once.
 //
 //   RSM_NO_DEBUG_ASSERT
 //     Disables the debug-only checks (destruction while locked).
@@ -244,6 +244,15 @@ namespace rsm
 		// never scans unless a try_lock was refused. Holding a handful of shared
 		// locks costs nothing worth measuring; holding a hundred is a design smell
 		// (shard the locks, or take one at a time) and this table is the reason.
+		//
+		// CONSIDERED AND REJECTED, measured (MinGW-GCC 13.2 / MSVC 19.5x, 32-thread
+		// host; A/A build-to-build noise 0.03 / 0.11 ns per lock+unlock pair):
+		//   - collapsing the two slotTable() reads in findActiveSlot() into one:
+		//     35.07 vs 35.35 ns -- inside the noise, so the refactor buys nothing.
+		//   - dropping the `used == 0` fast path in lock() so try_lock() always
+		//     runs first: equal uncontended (23.4 ns), 1.2-1.8x worse with four
+		//     contending writers (28/54/35 -> 50/62/51 ns/op), because the
+		//     contention path gains a try_lock that is guaranteed to fail.
 		static constexpr std::size_t kSharedSlotCount = RSM_SHARED_SLOT_COUNT;
 		// A zero cap is not "no shared locks": it is a zero-length array (a GNU
 		// extension, rejected by MSVC) and every lock_shared() would throw. The
