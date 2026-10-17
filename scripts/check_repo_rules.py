@@ -380,6 +380,39 @@ def check_gitattributes(rep: Report) -> None:
             rep.bad(".gitattributes", "eol", f"no `{required}` rule - R7 and .gitattributes must agree")
 
 
+# ---------------------------------------------------------------------------
+# R8b - every relative Markdown link resolves
+#      Documentation breaks by moving a file and forgetting a link. Nothing else
+#      notices: Markdown renders the text and 404s on click.
+# ---------------------------------------------------------------------------
+MD_LINK = re.compile(r"\]\(([^)]+)\)")
+
+
+def check_markdown_links(files: list[Path], rep: Report) -> None:
+    for path in files:
+        if path.suffix.lower() != ".md":
+            continue
+        text = path.read_bytes().decode("utf-8-sig", "replace")
+        in_fence = False
+        for number, line in enumerate(text.splitlines(), 1):
+            stripped = line.lstrip()
+            if stripped.startswith("```"):
+                in_fence = not in_fence
+                continue
+            if in_fence:
+                continue
+            for target in MD_LINK.findall(line):
+                target = target.strip()
+                if target.startswith(("http://", "https://", "#", "mailto:")):
+                    continue
+                clean = target.split("#")[0].split('"')[0].strip()
+                if not clean:
+                    continue
+                resolved = (path.parent / clean).resolve()
+                if not resolved.exists():
+                    rep.bad(f"{rel(path)}:{number}", "links", f"`{target}` does not resolve")
+
+
 def check_version(rep: Report) -> None:
     cmake = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
     header = (ROOT / "include/recursive_shared_mutex/recursive_shared_mutex.hpp").read_text(encoding="utf-8-sig")
@@ -438,6 +471,7 @@ def main() -> int:
     check_line_endings(files, rep, args.fix)
     check_gitattributes(rep)
     check_translations(rep)
+    check_markdown_links(files, rep)
     check_version(rep)
     check_changelog(rep)
 
