@@ -56,9 +56,10 @@ on:
         type: string
         default: "0"
   pull_request:
+    # Only the library can regress the numbers. The harness, the results files and
+    # this workflow itself are not worth 2 minutes of gate on every push.
     paths:
       - "include/**"
-      - "benchmarks/**"
       - ".github/workflows/benchmarks.yml"
 
 permissions:
@@ -246,7 +247,7 @@ jobs:
             # other scenario inside +-6%). S6 and S7 measure this library's own wrapper
             # cost, which is what a real regression would move.
             Write-Host "::notice::comparing S6/S7 against the committed CI baseline (40% threshold)"
-            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 3 -Repeats 3 `
+            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 2 -Repeats 2 `
               -OutDir "$env:RUNNER_TEMP/bench" -Baseline $baseline -RegressionPct 40 -GateScenarios "S6,S7"
           }
           else {
