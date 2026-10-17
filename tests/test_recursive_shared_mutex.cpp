@@ -377,15 +377,23 @@ TEST_CASE("shared slots are recycled after unlock and the cap is enforced", "[tl
 	}
 	REQUIRE(threw);
 
+	// The try_* half of the same asymmetry: with the table just as full,
+	// try_lock_shared() must report "could not acquire" instead of throwing.
+	// R9 calls this deliberate; until now nothing exercised it.
+	{
+		RecursiveSharedMutex extra;
+		REQUIRE_FALSE(extra.try_lock_shared());
+	}
+
 	for (auto& m : held)
 	{
 		m->unlock_shared();
 	}
 	held.clear();
 
-	// Table is free again after releasing everything.
+	// Table is free again after releasing everything, for both acquire paths.
 	RecursiveSharedMutex after;
-	after.lock_shared();
+	REQUIRE(after.try_lock_shared());
 	after.unlock_shared();
 }
 

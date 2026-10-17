@@ -1,0 +1,49 @@
+# Nightly soak: the push-time suite finishes in about three seconds, which is not
+# much of a soak for a concurrency primitive. These two jobs run the
+# framework-free mutual-exclusion driver for a minute - once plain, once under
+# TSan - so a race or a stranded slot that needs a lucky interleaving has a
+# chance to show up.
+#
+# Deliberately separate from ci.yml: nobody should wait for this on a push, and
+# its failures are almost always real, so they deserve their own page instead of
+# a red cell in a matrix everyone has learned to skim.
+
+name: soak
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # nightly, off-peak UTC
+  workflow_dispatch:
+
+concurrency:
+  group: soak
+  cancel-in-progress: true
+
+jobs:
+  mutual-exclusion:
+    name: mutual_exclusion 60s
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: g++ -O2 -std=c++17 -pthread -Iinclude tests/mutual_exclusion.cpp -o mutual_exclusion
+
+      - name: Run (8 threads, 60 s)
+        run: ./mutual_exclusion --threads 8 --seconds 60
+
+  mutual-exclusion-tsan:
+    name: mutual_exclusion 30s, TSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TSAN_OPTIONS: "halt_on_error=1 second_deadlock_stack=1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: g++ -O1 -g -std=c++17 -pthread -fsanitize=thread -Iinclude tests/mutual_exclusion.cpp -o mutual_exclusion
+
+      - name: Run (4 threads, 30 s)
+        run: ./mutual_exclusion --threads 4 --seconds 30

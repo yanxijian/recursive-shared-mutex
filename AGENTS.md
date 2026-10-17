@@ -154,7 +154,8 @@ contributor reports, which are triaged in English).
 `SharedLockable` members: they must not throw on the "could not acquire" path.
 Exhausting the per-thread slot table makes `lock_shared()` throw
 `resource_unavailable_try_again` while `try_lock_shared()` returns `false` - keep
-that asymmetry, it is deliberate and tested by `tests/backend_contract.cpp`.
+that asymmetry, it is deliberate and tested by `tests/test_recursive_shared_mutex.cpp`
+(E3, both halves).
 
 ### R10 - Never re-enter the backend **[review]**
 
@@ -227,7 +228,10 @@ the automation overwrite the desktop files.
   filter and always runs - it is the only place the rules are checked, and rules
   are exactly what a documentation change can break. The benchmark gate waits for
   `include/**`. A pull request additionally runs a subset of the matrix; the
-  exhaustive set runs on `main` and weekly. Do not add a job to the build
+  exhaustive set runs on `main` and weekly. `soak.yml` runs nightly and on
+  demand - the mutual-exclusion driver for a minute, plain and under TSan -
+  because three seconds is not a soak for a concurrency primitive; nothing on
+  the push path waits for it. Do not add a job to the build
   workflows "because it is convenient": it is paid on every push by everyone.
 - **`RSM_BACKEND_STD` is the wrong default on MinGW.** libstdc++'s
   `std::shared_mutex` there is built on winpthreads, which grants two exclusive
