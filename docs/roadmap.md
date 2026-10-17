@@ -87,8 +87,11 @@ Interface/core separation, applied per module in call-graph order:
 
 Safety rails:
 
-- Debug-only hold assertion for exclusive cores: `assert(!mtx.try_lock())`
-  is true only when the caller already holds the lock exclusively.
+- Debug-only hold assertion for exclusive cores:
+  `assert(mtx.is_held_exclusive())`. Do **not** use `assert(!mtx.try_lock())` for
+  this: `try_lock()` also returns false for a thread that holds the mutex
+  *shared*, so that rail accepted a shared holder. The accessor is the exact
+  check and has no side effects.
 - Shared cores cannot be asserted this way (`try_lock_shared` legitimately
   succeeds); they rely on call-graph discipline plus the boundary test suite
   run after every step.

@@ -2,7 +2,7 @@
 
 [English](roadmap.md) · **简体中文**
 
-<!-- translated-from: roadmap.md sha256:ec354da1fcd6 -->
+<!-- translated-from: roadmap.md sha256:73322f961406 -->
 
 RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 `std::recursive_mutex` 带到读写锁，
 直到代码库可以去递归化。本路线图覆盖剩余的生命周期。
@@ -68,7 +68,9 @@ R2 剩余的部分在消费方项目：把 `Recorder` 接到指标栈，并对 p
 
 安全护栏：
 
-- 独占核心用仅 Debug 的持锁断言：`assert(!mtx.try_lock())` 仅当调用方已独占持有该锁时才成立。
+- 独占核心用仅 Debug 的持锁断言：`assert(mtx.is_held_exclusive())`。**不要**用
+  `assert(!mtx.try_lock())`：线程持有**共享**锁时 `try_lock()` 同样返回 `false`，那条护栏会把
+  共享持有者放过去。访问器才是精确判断，且没有副作用。
 - 共享核心无法这样断言（`try_lock_shared` 合法地会成功）；它们依赖调用图纪律 + 每一步之后都跑边界测试套件。
 - "先读后写"的链条在这种模式下自然消失：最外层决定模式，因此升级尝试不可能发生。
 

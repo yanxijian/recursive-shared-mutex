@@ -471,3 +471,33 @@ TEST_CASE("exclusive lock blocks behind a foreign writer while a shared lock is 
 	REQUIRE(contended.try_lock());
 	contended.unlock();
 }
+
+TEST_CASE("unlock_shared from a foreign thread is rejected and keeps the owner's slot", "[concurrent][T14]")
+{
+	// The migration guide calls cross-thread release the headline hazard; it must
+	// fail loudly and leave the owner's accounting untouched.
+	RecursiveSharedMutex mtx;
+	mtx.lock_shared();
+
+	std::atomic<bool> threw{false};
+	std::atomic<bool> wrong_code{false};
+	std::thread foreign([&]() {
+		try
+		{
+			mtx.unlock_shared();
+		}
+		catch (const std::system_error& ex)
+		{
+			threw.store(true);
+			wrong_code.store(ex.code() != std::errc::operation_not_permitted);
+		}
+	});
+	foreign.join();
+
+	REQUIRE(threw.load());
+	REQUIRE_FALSE(wrong_code.load());
+
+	mtx.unlock_shared(); // the owner's slot is intact
+	REQUIRE(mtx.try_lock());
+	mtx.unlock();
+}
