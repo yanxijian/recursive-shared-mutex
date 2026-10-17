@@ -18,7 +18,13 @@ name: platform-matrix
 on:
   push:
     branches: [main, master]
+    paths-ignore: &docs_only
+      - "**/*.md"
+      - "docs/**"
+      - ".cursor/**"
+      - "benchmarks/results/**"
   pull_request:
+    paths-ignore: *docs_only
   schedule:
     - cron: "0 4 * * 1" # weekly: catch toolchain/image drift (this is how the
                         # MinGW winpthreads defect would have been caught)
@@ -29,6 +35,10 @@ concurrency:
 
 env:
   CMAKE_BUILD_PARALLEL_LEVEL: 4
+  # A pull request only needs the cells that would plausibly catch its mistake;
+  # the exhaustive matrix runs on main and weekly, where nobody is waiting. This is
+  # what keeps PR feedback at ~90 s instead of ~150 s.
+  PR_FAST_LANE: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -37,6 +47,7 @@ jobs:
   #    try_lock storm) and proves that -DRSM_BACKEND_SRWLOCK fixes it.
   # ---------------------------------------------------------------------------
   contract-windows:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     name: contract / windows / ${{ matrix.name }}
     runs-on: windows-latest
     timeout-minutes: 15
@@ -87,6 +98,7 @@ jobs:
           ./mutual_exclusion.exe --iters 20000
 
   contract-mingw-std:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     # Red by design: libstdc++ over winpthreads grants two exclusive owners under a
     # try_lock storm (docs/platform-notes.md), and -DRSM_BACKEND_STD is how you ask
     # for that backend. Kept so the defect stays visible - if the cell ever turns
@@ -111,6 +123,7 @@ jobs:
           ./backend_contract.exe --rounds 15 --iters 3000
           ./mutual_exclusion.exe --iters 20000
   contract-unix:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     name: contract / ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
@@ -139,6 +152,7 @@ jobs:
   # 2. Full suite (CMake + Catch2), one cell per compiler/stdlib combination.
   # ---------------------------------------------------------------------------
   build-windows:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     name: suite / windows / ${{ matrix.name }}
     runs-on: windows-latest
     timeout-minutes: 30
@@ -197,6 +211,7 @@ jobs:
           ctest --test-dir build --output-on-failure --timeout 180
 
   build-mingw-std:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     # Red by design: same toolchain, std::shared_mutex over winpthreads.
     name: suite / windows / mingw-ucrt64 + RSM_BACKEND_STD (defect visible)
     runs-on: windows-latest
@@ -221,6 +236,7 @@ jobs:
           cmake --build build
           ctest --test-dir build --output-on-failure --timeout 180
   build-linux:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     name: suite / linux / ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -248,6 +264,7 @@ jobs:
           ctest --test-dir build --output-on-failure --timeout 180
 
   build-linux-arm64:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     # Weak memory ordering. Keep, or drop if the preview runner label is not
     # available for your repository.
     name: suite / linux-arm64 / gcc
@@ -266,6 +283,7 @@ jobs:
           ctest --test-dir build --output-on-failure --timeout 180
 
   build-macos:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     name: suite / ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
@@ -284,6 +302,7 @@ jobs:
           ctest --test-dir build --output-on-failure --timeout 180
 
   build-alpine-musl:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     # musl has its own rwlock implementation; cheap to cover with a container.
     name: suite / alpine-musl
     runs-on: ubuntu-latest
@@ -354,6 +373,7 @@ jobs:
   # 4. Language-mode and module-boundary coverage.
   # ---------------------------------------------------------------------------
   cxx20-notice:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     # The R1 compile-time notice must fire in C++20 mode and stay silent in C++17.
     name: cxx20 / coroutine notice
     runs-on: ubuntu-latest
@@ -369,6 +389,7 @@ jobs:
           if grep -q "is bound to OS threads" c17.txt; then echo "notice leaked into C++17"; exit 1; fi
 
   shared-library:
+    if: github.event_name != 'pull_request'  # full-matrix cell: main/weekly only
     # The document says a mutex's shared-lock sequence must stay inside one
     # module's TLS domain. This job proves the hazard is real and that the
     # library detects the split (cross-module unlock throws).
