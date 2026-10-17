@@ -195,30 +195,29 @@ the automation overwrite the desktop files.
 - **Push policy:** work on a branch, open a PR, let CI run. Never force-push
   `main`. Batch related edits into one push: every push costs a full CI cycle
   (~2 minutes), and three pushes for one idea is three minutes paid for nothing.
-- **Authorship:** the commit is *authored* by the maintainer, never by the agent.
-  An agent-assisted commit carries a `Co-authored-by:` trailer in the body where
-  **the agent signs itself** - the actual model that produced the change, not a
-  placeholder:
+- **Authorship:** the commit is *authored* by the maintainer, not by the agent.
+  Recording that an agent took part is welcome - one trailer at the end of the body
+  - but it is a courtesy, not a gate:
 
   ```
-  Co-authored-by: <model> <noreply@<vendor>>
+  Co-authored-by: <what you are> [<address>]
   ```
 
-  This repository uses
+  - Sign as whatever you are actually running as. This repository prescribes no
+    model, vendor or version; a later agent must not inherit an earlier one's name.
+  - Add a version only when you actually know it. An agent cannot read its own
+    deployment identifier, so signing with the name alone is a normal outcome and
+    needs no explanation.
+  - Prefer an address that reaches nobody (`noreply@...`) over one that might reach
+    a person. Leaving the address out is fine too: the line stays readable and is
+    simply not counted as a co-author credit.
+  - Omitting the trailer is acceptable. The one thing that is not: putting the agent
+    in the author field. An address that belongs to nobody is unattributed on
+    GitHub, missing from the contribution graph, and invisible to
+    `git log --author`.
 
-  ```
-  Co-authored-by: deepseek-flash v4.1-flash <noreply@deepseek.com>
-  ```
-
-  Model name plus the deployment version, which comes from the maintainer: an agent
-  cannot read its own deployment identifier, so if a new model is in use the
-  maintainer updates this line. Do not invent a version number; if it is unknown,
-  write the name alone and say so in the body.
-
-  Why the author is not the agent: a commit authored by an address that belongs to
-  nobody is unattributed on GitHub, missing from the contribution graph, and
-  invisible to `git log --author`. The trailer keeps the record honest without
-  costing the maintainer their history.
+  (The commits already in this history carry `deepseek-flash v4.1-flash` - that is
+  the model that actually produced them, not a rule for the next one.)
 - **CI is tiered, and by what the change can break.** `ci.yml` and
   `platform-matrix.yml` filter on *build inputs* (`include/`, `tests/`,
   `examples/`, `CMakeLists.txt`, `.clang-format`, `.gitattributes`): a
