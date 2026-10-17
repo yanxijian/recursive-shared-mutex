@@ -122,7 +122,11 @@ jobs:
           - { name: ubuntu-gcc,   os: ubuntu-latest, cxx: g++ }
           - { name: ubuntu-clang, os: ubuntu-latest, cxx: clang++ }
           - { name: macos-arm64,  os: macos-14,      cxx: clang++ } # Apple Silicon
-          - { name: macos-x64,    os: macos-13,      cxx: clang++ }
+          # Intel macOS was dropped: the `macos-13` label stopped provisioning
+          # (its jobs sat queued for 10+ min while every other cell finished) and
+          # the replacement, `macos-15-intel`, is preview-only. Add it back as an
+          # optional cell if Intel coverage matters - libc++ itself is covered by
+          # arm64 here and by the clang-libcxx cell on Linux.
     steps:
       - uses: actions/checkout@v4
       - name: Compile + run contract tests
@@ -273,8 +277,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macos-14-arm64, os: macos-14 } # Apple libc++, arm64
-          - { name: macos-13-x64,   os: macos-13 } # Apple libc++, x86_64
+          - { name: macos-14-arm64, os: macos-14 } # Apple libc++, arm64 (see the note in contract-unix)
     steps:
       - uses: actions/checkout@v4
       - name: Configure, build, test
