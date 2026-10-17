@@ -144,10 +144,12 @@ jobs:
 
             - Measured on a `windows-2022` GitHub runner, medians of ${{ inputs.repeats || '3' }} runs.
             - Absolute numbers belong to that runner; compare the speedup column.
-            - Opened by `.github/workflows/benchmarks.yml` and **merged automatically**
-              when the diff stays inside `benchmarks/results/ci-*.md`. It carries no
-              checks: PRs created with `GITHUB_TOKEN` do not start workflows (GitHub
-              limitation), and a results-only change does not need the full matrix.
+            - Opened by `.github/workflows/benchmarks.yml` because `update_mode` is
+              `pull-request`: it is left for a human on purpose. The default mode,
+              `auto-merge`, does not open a pull request at all. It carries no
+              checks, because PRs created with `GITHUB_TOKEN` do not start
+              workflows (GitHub limitation) and a results-only change does not need
+              the full matrix.
 
       - name: Merge it, so nobody has to
         # A pull request for a results file invites a click that nobody wants to
