@@ -58,9 +58,9 @@ Why it matters: the header contains `×`, `≈` and `µs` in comments. MSVC assu
 the system code page for a BOM-less file, so a missing BOM shows up as mojibake
 in the IDE and, on a non-Western code page, can break parsing.
 
-### R2 - 120 columns, tab-indented, clang-format is the authority **[CI]**
+### R2 - 140 columns, tab-indented, clang-format is the authority **[CI]**
 
-`ColumnLimit: 120`, `UseTab: ForIndentation`, `TabWidth: 4` (see `.clang-format`).
+`ColumnLimit: 140`, `UseTab: ForIndentation`, `TabWidth: 4` (see `.clang-format`).
 Keep a statement on one line when it fits; do not wrap early "for style", and do
 not reflow files you are not otherwise changing.
 
