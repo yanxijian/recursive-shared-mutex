@@ -74,6 +74,11 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
 | MinGW-GCC 13.2 + `RSM_BACKEND_STD` (libstdc++/winpthreads) | 4.99 M ops/s | 0.34 M ops/s | **0.067×** |
 | MinGW-GCC 13.2 (default: native SRWLOCK) | 4.99 M ops/s | 7.54 M ops/s | **1.52×** |
 
+> Numbers are medians of several runs on one 32-core machine, and that machine is noisy: the
+> per-report `Run-to-run spread` line has shown tens of percent, up to 250% on the balanced
+> scenario. Read them as order of magnitude; [benchmarks/README.md](benchmarks/README.md)
+> explains why, and `benchmarks/results/ci-*.md` is the fixed-hardware drift record.
+
 - **MSVC / clang with the MSVC STL**: the wrapper costs about 1 ns per lock
   pair (5.8 ns vs 3.3 ns for the raw backend); exclusive-only overhead is
   **0.9×–1.2×**, and read-heavy workloads gain roughly 6×–14× total throughput.

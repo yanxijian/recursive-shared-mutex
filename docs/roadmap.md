@@ -103,13 +103,32 @@ library remains available for other consumers.
 
 ## R4 - (optional, library-side) pluggable fair backend
 
-Only if R2 proves starvation in production: implement a writer-preferring
-fair rwlock exposing the same `SharedMutex` surface so RecursiveSharedMutex
-becomes backend-pluggable (`std::shared_mutex` remains the default backend).
-Do not build this speculatively - unfairness is the standard's trade-off and
-a fair backend costs readers.
+Status: **half done.** The backend is pluggable today - `RSM_BACKEND_SRWLOCK`
+(the default on MinGW) and `RSM_BACKEND_STD` select between a native SRWLOCK
+wrapper and `std::shared_mutex`, and `RecursiveSharedMutex::backend_type`
+exposes the choice. What is missing is a *writer-preferring* implementation.
+
+Only if R2 proves starvation in production: implement that fair rwlock exposing
+the same `SharedMutex` surface. Do not build it speculatively - unfairness is
+the standard's trade-off and a fair backend costs readers.
+
+## Landed since this roadmap was written
+
+- Backend contract tests (`tests/backend_contract.cpp`, `tests/mutual_exclusion.cpp`),
+  framework-free so any toolchain can be checked with one compiler call.
+- A 14-cell platform matrix, including two `RSM_BACKEND_STD` cells that keep the
+  MinGW winpthreads defect visible.
+- MinGW defaults to the native SRWLOCK backend (v0.3.0).
+- Compile-time knobs: `RSM_SHARED_SLOT_COUNT`, `RSM_VERSION`, `RSM_NO_DEBUG_ASSERT`,
+  `RSM_BACKEND_STD`.
+- `rsm::CacheAlignedRecursiveSharedMutex` for sharded arrays (~2x there).
+- Benchmark automation that refreshes `benchmarks/results/ci-*.md`, and a repo rule
+  set (`AGENTS.md`) checked in CI.
+- `benchmarks/results/*.md` re-measured on v0.3.0, now with medians and a spread line.
 
 ## Pending
 
-- Re-measure `benchmarks/results/msvc.md` against v0.2.1 on an MSVC host
-  (current tables are v0.2.0-era; densification should improve S7/mixed).
+- R2's remaining half lives in the consuming project: bridge the `Recorder` to the
+  metrics stack and alert on p99 write-wait.
+- Measure on ARM64 hardware rather than CI's preview runner.
+- A writer-preferring backend, if and when R2 shows starvation in production (R4).
