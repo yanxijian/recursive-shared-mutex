@@ -2,7 +2,7 @@
 
 [English](CONTRIBUTING.md) · **简体中文**
 
-<!-- translated-from: .github/CONTRIBUTING.md sha256:80d561a4fe16 -->
+<!-- translated-from: .github/CONTRIBUTING.md sha256:01858563af53 -->
 
 感谢你帮助改进 **recursive-shared-mutex**。
 
@@ -30,7 +30,7 @@ python3 scripts/check_repo_rules.py
 - 遵循 `.clang-format` / `.editorconfig`（本项目 C/C++ 源文件为 UTF-8 BOM + CRLF）
 - 行为变更必须新增或更新测试
 - 在 `CHANGELOG.md` 的 `[Unreleased]`（或下一个版本段）下记录改动
-- 完整规则见 [AGENTS.md](AGENTS.md)，其中可由程序检查的部分由
+- 完整规则见 [AGENTS.md](../AGENTS.md)，其中可由程序检查的部分由
   `scripts/check_repo_rules.py` 在 CI 中强制执行
 
 ## Pull request
