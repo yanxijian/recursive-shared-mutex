@@ -5,8 +5,8 @@
 #     never converts them, so the bytes on disk are the bytes in the object store.
 #   * Everything else is LF in the repository AND on checkout - that is what
 #     `text=auto eol=lf` means, and it matches .editorconfig's [*] default.
-#   * Windows batch files are the one real exception: cmd.exe expects CRLF, so
-#     they are stored as LF and checked out as CRLF.
+#   * Windows batch files are CRLF in the object store and on checkout, the same
+#     rule as C/C++ - cmd.exe expects CRLF, and one mechanism beats two.
 #
 # `scripts/check_repo_rules.py` (R7) verifies the working tree agrees with this,
 # so a stray editor or a careless rewrite cannot flip a whole file silently.
@@ -23,9 +23,11 @@
 *.hpp   -text -eol
 *.hxx   -text -eol
 
-# Batch files: LF in the object store, CRLF on checkout.
-*.bat   text eol=crlf
-*.cmd   text eol=crlf
+# Batch files: CRLF in the object store too. Same rule as C/C++ means one
+# mechanism for "this file must be CRLF", and an accidental LF flip shows up as a
+# real diff instead of being normalised away on commit.
+*.bat   -text -eol
+*.cmd   -text -eol
 
 # Shell scripts stay LF everywhere, or the shebang breaks.
 *.sh    text eol=lf

@@ -85,7 +85,9 @@ def cpp_only(files: list[Path]) -> list[Path]:
 
 
 def skipped(path: Path) -> bool:
-    parts = path.parts
+    # Directories only: a file called build_and_run.cmd is not a build directory,
+    # and skipping it silently is how a rule stops being enforced.
+    parts = path.parts[:-1]
     if any(part in SKIP_PARTS for part in parts):
         return True
     return any(part.startswith(SKIP_PREFIXES) for part in parts)
@@ -221,6 +223,7 @@ TEXT_SUFFIXES = {
     ".in",
     ".txt",
     ".mdc",
+    ".py",
     ".editorconfig",
 }
 
@@ -241,12 +244,14 @@ EOL_POLICY = {}
 
 GITATTRIBUTES_REQUIRED = (
     "* text=auto eol=lf",
-    "*.cpp   -text",
-    "*.cmd   text eol=crlf",
+    "*.cpp   -text -eol",
+    "*.cmd   -text -eol",
     "*.sh    text eol=lf",
 )
 
-TEXT_NAMES = {"LICENSE", ".gitignore", ".editorconfig", ".gitattributes"}
+# Extension-less text files worth checking too (the hook must stay LF or it will
+# not run; the formatter config is edited by hand).
+TEXT_NAMES = {"LICENSE", ".gitignore", ".gitattributes", ".editorconfig", ".clang-format", "pre-commit"}
 
 
 def eol_style(raw: bytes) -> str:
