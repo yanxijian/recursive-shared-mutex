@@ -195,11 +195,15 @@ the automation overwrite the desktop files.
 - **Push policy:** work on a branch, open a PR, let CI run. Never force-push
   `main`. Batch related edits into one push: every push costs a full CI cycle
   (~2 minutes), and three pushes for one idea is three minutes paid for nothing.
-- **CI is tiered:** a pull request runs the cells that could plausibly catch its
-  mistake (`ci.yml` on three OSes, `contract-mingw`, the MinGW suite, the
-  sanitizers); the exhaustive matrix, the other toolchains and the benchmark gate
-  run on `main`, weekly, or when `include/**` changes. Do not make a job run on
-  every PR because it is convenient - it is paid on every push by everyone.
+- **CI is tiered, and by what the change can break.** `ci.yml` and
+  `platform-matrix.yml` filter on *build inputs* (`include/`, `tests/`,
+  `examples/`, `CMakeLists.txt`, `.clang-format`, `.gitattributes`): a
+  documentation or script change starts no compiler at all. `hygiene.yml` has no
+  filter and always runs - it is the only place the rules are checked, and rules
+  are exactly what a documentation change can break. The benchmark gate waits for
+  `include/**`. A pull request additionally runs a subset of the matrix; the
+  exhaustive set runs on `main` and weekly. Do not add a job to the build
+  workflows "because it is convenient": it is paid on every push by everyone.
 - **`RSM_BACKEND_STD` is the wrong default on MinGW.** libstdc++'s
   `std::shared_mutex` there is built on winpthreads, which grants two exclusive
   owners, so the header auto-selects the native SRWLOCK backend on `__MINGW32__`.
