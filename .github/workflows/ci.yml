@@ -36,6 +36,19 @@ jobs:
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure --timeout 120
 
+  repo-rules:
+    # AGENTS.md rules that a program can check: encoding (BOM+CRLF), column limit,
+    # #pragma comment(lib), header hygiene, version sync, changelog section.
+    # This is what makes the rules binding for every agent, not just advice.
+    name: repo-rules
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check repository rules
+        run: python3 scripts/check_repo_rules.py
+
   clang-format:
     name: clang-format
     runs-on: ubuntu-latest

@@ -1,4 +1,4 @@
-// Instrumented write-path RAII guard (roadmap R2): writer-starvation
+﻿// Instrumented write-path RAII guard (roadmap R2): writer-starvation
 // observability for RecursiveSharedMutex.
 //
 // Design contracts (read before using):
