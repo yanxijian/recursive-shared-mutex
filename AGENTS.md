@@ -272,19 +272,25 @@ README that still advertises the old tag.
 5. **GitHub Release**, from the changelog section, **bilingual**:
 
    ```
-   **English** · [简体中文](#简体中文)
-
    <the changelog section, English>
 
-   ---
-
-   ## 简体中文
+   <details>
+   <summary><b>简体中文</b> &nbsp;&middot;&nbsp; Simplified Chinese translation</summary>
 
    <a full translation, not a summary>
+
+   </details>
    ```
 
    Title: `<english title> · <中文标题>`. `--latest` only on the newest release;
    GitHub otherwise promotes whichever was created last.
+
+   A **collapsible block, not a jump link**: GitHub renders release, issue and PR
+   bodies *without* heading ids, so `[简体中文](#简体中文)` renders as
+   `href="#%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87"` and scrolls nowhere. An explicit
+   `<a id="x">` survives only as `id="user-content-x"`, which ties the link to a
+   sanitiser detail. `<details>/<summary>` passes through unchanged and needs no
+   anchor at all - this is the one mechanism verified against the rendered HTML.
 
    ```bash
    gh release create vX.Y.Z --title "vX.Y.Z - ... · ..." \
