@@ -1,4 +1,4 @@
-// R2 observability tests for the instrumented write guard.
+﻿// R2 observability tests for the instrumented write guard.
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>

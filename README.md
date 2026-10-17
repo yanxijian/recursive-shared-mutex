@@ -219,6 +219,8 @@ cmake/                            # package config
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). Please open an issue before large design changes.
 
+**Working with an AI agent?** The repository rules live in [AGENTS.md](AGENTS.md) - one file for Claude Code, Codex, Cursor, Copilot and anything else, with `CLAUDE.md`, `.cursor/rules/repo.mdc` and `.github/copilot-instructions.md` pointing at it. The rules a program can check (UTF-8 BOM + CRLF, 120 columns, no `#pragma comment(lib)`, header hygiene, version sync, changelog section) run in CI on every push via `scripts/check_repo_rules.py`, so they fail the build instead of waiting for review. Run `python3 scripts/check_repo_rules.py --fix` to repair the mechanical ones, and `git config core.hooksPath .githooks` to get them before the commit.
+
 ## Security
 
 See [SECURITY.md](SECURITY.md).
