@@ -213,7 +213,7 @@ jobs:
         # pushed either way, so a maintainer can open it with one click - see the
         # fallback step below.
         continue-on-error: true
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'pull-request' && inputs.mode != 'compare'
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'pull-request'
         uses: peter-evans/create-pull-request@v6
         with:
           branch: bench/refresh-${{ matrix.name }}
@@ -246,7 +246,6 @@ jobs:
         if: |
           github.event_name != 'pull_request' &&
           (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) &&
-          inputs.mode != 'compare' &&
           inputs.update_mode == 'auto-merge'
         shell: pwsh
         env:
