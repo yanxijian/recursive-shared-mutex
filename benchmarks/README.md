@@ -92,14 +92,21 @@ not in the lock.
 baseline and the library alternate (ABBA), every round records `RSM ops /
 baseline ops`, and the report uses the median of those ratios instead of the
 ratio of two independently measured medians. It writes
-`compare-<toolchain>.md` (git-ignored) with the per-scenario median ratio, the
-IQR, and the number of "healthy" rounds - rounds where the baseline came within
-80% of its best round.
+`compare-<toolchain>.md` locally (git-ignored) or `compare-ci-<toolchain>.md` on
+the runner (committed) with the per-scenario median ratio, the IQR, and the
+number of "healthy" rounds - rounds where the baseline came within 80% of its
+best round.
 
 The baseline is bimodal under a `try_lock` + `yield` spin: when it convoys, the
 ratio inflates. The healthy count says how much of the number is baseline
-behaviour rather than the library. Diagnostic for now: the gate and the Bencher
-upload still use the normal per-implementation runs.
+behaviour rather than the library.
+
+This is the weekly path: `mode=compare` (the scheduled default) writes
+`compare-ci-<toolchain>.md` (committed - it is the next run's gate baseline) and
+the BMF that goes to Bencher, so one measurement feeds both the gate and the
+absolute history. The gate judges the healthy ratio against the previous report
+and skips scenarios with fewer than three healthy rounds; `ci-*.md` is retained
+for the pull-request screen and for manual `measure` runs.
 
 ## Scenarios
 

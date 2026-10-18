@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:e9354266f06c -->
+<!-- translated-from: README.md sha256:fcec4d8ba20e -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -98,8 +98,11 @@ fork 或新克隆无需账号即可验证格式。
 "健康轮次"数——健康指基线达到它本轮最好成绩的 80% 以内。
 
 在 `try_lock` + `yield` 自旋下基线是双峰的：它一旦 convoy，比值就被抬高。健康轮次数
-说明了这个数字里有多少是基线行为、多少是库本身。目前仅作诊断：gate 与 Bencher 上报
-仍走普通的逐实现运行。
+说明了这个数字里有多少是基线行为、多少是库本身。这是每周的默认路径：
+`mode=compare`（定时任务的默认值）写出 `compare-ci-<toolchain>.md`（提交进仓库，
+作为下一次运行的 gate 基线）以及发给 Bencher 的 BMF，一次测量同时供给 gate 与绝对历史。
+gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过；`ci-*.md` 保留给 pull request
+的门槛和手动 `measure` 运行。
 
 ## 场景
 

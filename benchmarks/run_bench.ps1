@@ -260,6 +260,38 @@ function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [st
 	if (-not $Quiet) { Write-Host "Wrote $outFile" }
 }
 
+function Write-Bmf($rows, [string]$jsonPath, [string]$kind) {
+	if ([string]::IsNullOrWhiteSpace($jsonPath)) { return }
+	# BMF is keyed by benchmark name; the toolchain is part of the name because
+	# both matrix cells share one Bencher project and one testbed fingerprint.
+	$tool = if ($kind -eq "msvc") { "msvc" } else { "mingw" }
+	$bmf = [ordered]@{}
+	foreach ($row in $rows) {
+		$key = "{0} / {1} / {2}" -f $tool, $row.Scenario, $row.Impl
+		$bmf[$key] = [ordered]@{
+			throughput = [ordered]@{
+				value = [math]::Round($row.MedianOpsPerSecond, 3)
+				lower_value = [math]::Round($row.MinOpsPerSecond, 3)
+				upper_value = [math]::Round($row.MaxOpsPerSecond, 3)
+			}
+		}
+	}
+	$text = $bmf | ConvertTo-Json -Depth 8
+	[System.IO.File]::WriteAllText($jsonPath, $text, (New-Object System.Text.UTF8Encoding($false)))
+	if (-not $Quiet) { Write-Host "BMF written to $jsonPath" }
+}
+
+function Read-CompareRatios([string]$path) {
+	$map = @{}
+	if (-not (Test-Path $path)) { return $map }
+	foreach ($line in Get-Content $path -Encoding utf8) {
+		if ($line -match '^\| (S[0-9][^|]*?) \| \*\*([0-9.]+)x\*\* \| ([0-9.]+)% \| ([0-9]+)/[0-9]+ \| ([0-9.]+)x \|') {
+			$map[$Matches[1].Trim()] = [pscustomobject]@{ Median = [double]$Matches[2]; Iqr = [double]$Matches[3]; Healthy = [int]$Matches[4]; HealthyRatio = [double]$Matches[5] }
+		}
+	}
+	return $map
+}
+
 function Write-CompareReport([string]$toolchainName, [string]$compilerLabel, $rows, [string]$outFile) {
 	New-Item -ItemType Directory -Force -Path (Split-Path $outFile) | Out-Null
 	$md = New-Object System.Collections.Generic.List[string]
@@ -315,8 +347,8 @@ function Invoke-Toolchain([string]$kind) {
 
 	$outFile = Join-Path $OutDir "$name.md"
 	if ($Compare) {
-		$baseName = if ($kind -eq "msvc") { "msvc" } else { "mingw-gcc" }
 		$compareRows = New-Object System.Collections.Generic.List[object]
+		$rows = New-Object System.Collections.Generic.List[object]
 		foreach ($sc in $scenarios) {
 			$cargs = @("--compare", "--rounds", "$Rounds", "--seconds", "$Seconds", "--impl", $sc.ImplRsm, "--scenario", $sc.Name, "--mode", $sc.Mode)
 			if ($sc.Mode -eq "rw") { $cargs += @("--readers", "$($sc.R)", "--writers", "$($sc.W)") }
@@ -326,6 +358,10 @@ function Invoke-Toolchain([string]$kind) {
 			$summary = $out | Where-Object { $_ -like "SUMMARY|*" } | Select-Object -Last 1
 			if (-not $summary) { throw "no SUMMARY for scenario=$($sc.Name)" }
 			$p = ([string]$summary).Split("|")
+			$roundsData = @($out | Where-Object { $_ -like "COMPARE|*" } | ForEach-Object {
+				$q = ([string]$_).Split("|")
+				[pscustomobject]@{ OpsA = [double]$q[4]; OpsB = [double]$q[5]; FailedA = [double]$q[7]; YieldsA = [double]$q[8]; FailedB = [double]$q[9]; YieldsB = [double]$q[10]; KernelA = [double]$q[11]; KernelB = [double]$q[12] }
+			})
 			$compareRows.Add([pscustomobject]@{
 				Scenario = $p[1]
 				MedianRatio = [double]$p[3]
@@ -334,8 +370,66 @@ function Invoke-Toolchain([string]$kind) {
 				HealthyRatio = [double]$p[6]
 				Raw = ($out -join "`n")
 			})
+			$mA = ($roundsData | Measure-Object OpsA -Minimum -Maximum -Average)
+			$mB = ($roundsData | Measure-Object OpsB -Minimum -Maximum -Average)
+			$rows.Add([pscustomobject]@{
+				Scenario = $sc.Name
+				Impl = "recursive_mutex"
+				MedianOpsPerSecond = Get-Median @($roundsData | ForEach-Object { $_.OpsA })
+				MinOpsPerSecond = $mA.Minimum
+				MaxOpsPerSecond = $mA.Maximum
+				MedianYields = Get-Median @($roundsData | ForEach-Object { $_.YieldsA })
+				MedianFailed = Get-Median @($roundsData | ForEach-Object { $_.FailedA })
+				MedianUserMs = 0
+				MedianKernelMs = Get-Median @($roundsData | ForEach-Object { $_.KernelA })
+				SpreadPct = if ($mA.Average -gt 0) { ($mA.Maximum - $mA.Minimum) / $mA.Average * 100.0 } else { 0.0 }
+			})
+			$rows.Add([pscustomobject]@{
+				Scenario = $sc.Name
+				Impl = $sc.ImplRsm
+				MedianOpsPerSecond = Get-Median @($roundsData | ForEach-Object { $_.OpsB })
+				MinOpsPerSecond = $mB.Minimum
+				MaxOpsPerSecond = $mB.Maximum
+				MedianYields = Get-Median @($roundsData | ForEach-Object { $_.YieldsB })
+				MedianFailed = Get-Median @($roundsData | ForEach-Object { $_.FailedB })
+				MedianUserMs = 0
+				MedianKernelMs = Get-Median @($roundsData | ForEach-Object { $_.KernelB })
+				SpreadPct = if ($mB.Average -gt 0) { ($mB.Maximum - $mB.Minimum) / $mB.Average * 100.0 } else { 0.0 }
+			})
 		}
-		Write-CompareReport $(if ($kind -eq "msvc") { "MSVC" } else { "MinGW-GCC" }) $label $compareRows (Join-Path $OutDir "compare-$baseName.md")
+		Write-CompareReport $(if ($kind -eq "msvc") { "MSVC" } else { "MinGW-GCC" }) $label $compareRows (Join-Path $OutDir "compare-$name.md")
+		Write-Bmf $rows $Json $kind
+		if (-not [string]::IsNullOrWhiteSpace($Baseline)) {
+			if (-not (Test-Path $Baseline)) {
+				Write-Host "No compare baseline at $Baseline; skipping the gate."
+			}
+			else {
+				$old = Read-CompareRatios $Baseline
+				$bad = @()
+				$gated = @()
+				if (-not [string]::IsNullOrWhiteSpace($GateScenarios)) {
+					$gated = @($GateScenarios.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+				}
+				foreach ($r in $compareRows) {
+					if ($r.Healthy -lt 3) {
+						if (-not $Quiet) { Write-Host ("{0}: only {1} healthy baseline rounds; not gated" -f $r.Scenario, $r.Healthy) }
+						continue
+					}
+					if (-not $old.ContainsKey($r.Scenario)) { continue }
+					$o = $old[$r.Scenario]
+					if ($o.Healthy -lt 3) { continue }
+					$isGated = ($gated.Count -eq 0) -or (@($gated | Where-Object { $r.Scenario.StartsWith($_) }).Count -gt 0)
+					$delta = ($r.HealthyRatio - $o.HealthyRatio) / $o.HealthyRatio * 100.0
+					$state = if (-not $isGated) { "not gated" } elseif ($RegressionPct -gt 0 -and $delta -le -$RegressionPct) { "REGRESSION" } elseif ($delta -ge $RegressionPct) { "faster" } else { "within threshold" }
+					if (-not $Quiet) {
+						$deltaText = if ($delta -ge 0) { "+" + $delta.ToString("N1") } else { $delta.ToString("N1") }
+						"{0,-32} {1,7:N2}x -> {2,7:N2}x  ({3,6}%)  {4}" -f $r.Scenario, $o.HealthyRatio, $r.HealthyRatio, $deltaText, $state | Write-Host
+					}
+					if ($isGated -and $RegressionPct -gt 0 -and $delta -le -$RegressionPct) { $bad += $r.Scenario }
+				}
+				if ($bad.Count -gt 0) { throw ("benchmark regression beyond {0}%: {1}" -f $RegressionPct, ($bad -join ", ")) }
+			}
+		}
 		return
 	}
 	$rows = New-Object System.Collections.Generic.List[object]
@@ -377,25 +471,7 @@ function Invoke-Toolchain([string]$kind) {
 	else { $backendLine }
 	Write-Report $(if ($kind -eq "msvc") { "MSVC" } else { "MinGW-GCC" }) $label $rows $outFile $backendText
 
-	if (-not [string]::IsNullOrWhiteSpace($Json)) {
-		# BMF is keyed by benchmark name; the toolchain is part of the name because
-		# both matrix cells share one Bencher project and one testbed fingerprint.
-		$tool = if ($kind -eq "msvc") { "msvc" } else { "mingw" }
-		$bmf = [ordered]@{}
-		foreach ($row in $rows) {
-			$key = "{0} / {1} / {2}" -f $tool, $row.Scenario, $row.Impl
-			$bmf[$key] = [ordered]@{
-				throughput = [ordered]@{
-					value = [math]::Round($row.MedianOpsPerSecond, 3)
-					lower_value = [math]::Round($row.MinOpsPerSecond, 3)
-					upper_value = [math]::Round($row.MaxOpsPerSecond, 3)
-				}
-			}
-		}
-		$text = $bmf | ConvertTo-Json -Depth 8
-		[System.IO.File]::WriteAllText($Json, $text, (New-Object System.Text.UTF8Encoding($false)))
-		if (-not $Quiet) { Write-Host "BMF written to $Json" }
-	}
+	Write-Bmf $rows $Json $kind
 
 	if (-not [string]::IsNullOrWhiteSpace($Baseline)) {
 		$old = Read-BaselineSpeedups $Baseline

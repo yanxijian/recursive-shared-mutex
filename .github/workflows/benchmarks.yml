@@ -61,7 +61,7 @@ on:
         description: "measure = normal per-implementation run; compare = same-process ABBA diagnostic"
         type: choice
         options: [measure, compare]
-        default: measure
+        default: compare
       compare_rounds:
         description: "ABBA rounds when mode=compare"
         type: string
@@ -139,17 +139,28 @@ jobs:
           if ("${{ matrix.toolchain }}" -eq "mingw") {
             $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
           }
-          pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain ${{ matrix.toolchain }} `
-            -Seconds ${{ inputs.seconds || '3' }} -Rounds ${{ inputs.compare_rounds || '10' }} `
-            -Compare -OutDir "$env:RUNNER_TEMP\compare"
-          Get-Content "$env:RUNNER_TEMP\compare\compare-*.md" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+          $compareArgs = @("-NoProfile", "-File", "benchmarks/run_bench.ps1",
+                           "-Toolchain", "${{ matrix.toolchain }}",
+                           "-Seconds", "${{ inputs.seconds || '3' }}",
+                           "-Rounds", "${{ inputs.compare_rounds || '10' }}",
+                           "-Compare", "-OutDir", "benchmarks/results",
+                           "-Json", "$env:RUNNER_TEMP\bmf-${{ matrix.name }}.json")
+          $baseline = "benchmarks/results/compare-ci-${{ matrix.name }}.md"
+          if (Test-Path $baseline) {
+            $compareArgs += @("-Baseline", $baseline, "-RegressionPct", "${{ inputs.regression_pct || '0' }}")
+          } else {
+            Write-Host "No compare baseline yet; this run records one."
+          }
+          & pwsh @compareArgs
+          if ($LASTEXITCODE -ne 0) { throw "compare failed with exit code $LASTEXITCODE" }
+          Get-Content $baseline | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
 
       - name: Upload the comparison
         if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.mode == 'compare'
         uses: actions/upload-artifact@v4
         with:
           name: compare-${{ matrix.name }}
-          path: ${{ runner.temp }}/compare/compare-*.md
+          path: benchmarks/results/compare-ci-${{ matrix.name }}.md
           retention-days: 30
 
       - name: Send to Bencher (optional tracking)
@@ -206,7 +217,9 @@ jobs:
         with:
           branch: bench/refresh-${{ matrix.name }}
           delete-branch: true
-          add-paths: benchmarks/results/ci-*.md
+          add-paths: |
+            benchmarks/results/ci-*.md
+            benchmarks/results/compare-ci-*.md
           commit-message: "bench: refresh ${{ matrix.name }} results"
           title: "bench: refresh ${{ matrix.name }} results"
           body: |
@@ -248,7 +261,7 @@ jobs:
           }
           # Refuse to carry anything other than the CI results files.
           $paths = @(git diff --cached --name-only)
-          $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/ci-[A-Za-z0-9._-]+[.]md$' })
+          $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/(ci|compare-ci)-[A-Za-z0-9._-]+[.]md$' })
           if ($unexpected.Count -gt 0) {
             Write-Host ("::warning::not committing: unexpected paths {0}" -f ($unexpected -join ", "))
             exit 0
