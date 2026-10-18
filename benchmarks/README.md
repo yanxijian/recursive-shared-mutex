@@ -103,8 +103,10 @@ This is the weekly path: `mode=compare` (the scheduled default) writes
 `compare-ci-<toolchain>.md` (committed; it is the next run's gate baseline) and
 the BMF for Bencher from the same run. The gate compares the healthy ratio
 against the previous report and skips scenarios with fewer than three healthy
-rounds. The pull-request gate uses the same report; `measure` mode remains for
-the desktop numbers and manual checks.
+rounds. The weekly gate covers only scenarios that stayed within a few percent
+across three seeded samples: MSVC S2/S4/S5/S6/S7 and MinGW S5/S6, at 10%. The
+pull-request gate uses the same report for S6/S7 at 20%; `measure` mode remains
+for the desktop numbers and manual checks.
 
 ## Scenarios
 

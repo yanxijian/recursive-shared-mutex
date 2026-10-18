@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:4f48bd60d417 -->
+<!-- translated-from: README.md sha256:aa08ffaabe2c -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -97,8 +97,9 @@ fork 或新克隆无需账号即可验证格式。
 说明了这个数字里有多少是基线行为、多少是库本身。这是每周的默认路径：
 `mode=compare`（定时任务的默认值）写出 `compare-ci-<toolchain>.md`（提交进仓库，
 作为下一次运行的 gate 基线）以及发给 Bencher 的 BMF，同一次测量既供 gate 也供绝对历史。
-gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过。pull request 的门槛也用这份报告；
-`measure` 模式保留给桌面数字和手动检查。
+gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过。每周闸门只覆盖三次 seed 样本
+中保持稳定的场景：MSVC 的 S2/S4/S5/S6/S7 和 MinGW 的 S5/S6，阈值 10%。pull request 的门槛
+仍用 S6/S7、20%；`measure` 模式保留给桌面数字和手动检查。
 
 ## 场景
 

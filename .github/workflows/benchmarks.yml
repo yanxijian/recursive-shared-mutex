@@ -12,8 +12,9 @@
 #    report from the same runner.
 #  * Bencher tracking is optional (BENCHER_PROJECT + BENCHER_API_KEY); without
 #    them the step validates the BMF with --dry-run. It is not a gate.
-#  * The PR gate runs the same comparison and checks S6/S7 at 20%: on four cores
-#    the read-parallelism scenarios sit at parity by construction.
+#  * The weekly gate checks MSVC S2/S4/S5/S6/S7 and MinGW S5/S6 at 10%; the
+#    other scenarios are recorded but not gated, because their cross-run spread
+#    is larger than a useful threshold. The PR gate checks S6/S7 at 20%.
 #
 # HARD RULE - this workflow never merges a pull request. The only automatic
 # merge is `POST /repos/{repo}/merges` for the results branch this job created
@@ -140,7 +141,14 @@ jobs:
           $suffix = if ("${{ matrix.name }}" -eq "msvc") { "msvc" } else { "mingw-gcc" }
           $baseline = "benchmarks/results/compare-ci-$suffix.md"
           if (Test-Path $baseline) {
-            $compareArgs += @("-Baseline", $baseline, "-RegressionPct", "${{ inputs.regression_pct || '0' }}")
+            # Provisional gate from three seeded samples: only scenarios that
+            # stayed within a few percent across separate runs. The rest are
+            # recorded but not gated, because their cross-run spread is larger
+            # than any threshold that would catch a real regression.
+            $pct = "${{ inputs.regression_pct || '0' }}"
+            if ($pct -eq "0") { $pct = "10" }
+            $gate = if ("${{ matrix.name }}" -eq "msvc") { "S2,S4,S5,S6,S7" } else { "S5,S6" }
+            $compareArgs += @("-Baseline", $baseline, "-RegressionPct", $pct, "-GateScenarios", $gate)
           } else {
             Write-Host "No compare baseline yet; this run records one."
           }
