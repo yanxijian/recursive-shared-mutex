@@ -21,6 +21,14 @@ endif()
 option(RSM_BUILD_TESTS "Build unit tests" ${RSM_IS_TOP_LEVEL})
 option(RSM_BUILD_EXAMPLES "Build examples" ${RSM_IS_TOP_LEVEL})
 
+# Optional program-wide slot cap. The header defaults to 256; setting this
+# cache variable makes the INTERFACE target propagate the same value to every
+# target that links rsm::recursive_shared_mutex. Do not also set the macro per
+# target: RSM_SHARED_SLOT_COUNT sizes the slot table in the class definition,
+# so differing values across TUs are an ODR violation (IFNDR).
+set(RSM_SHARED_SLOT_COUNT "" CACHE STRING
+	"Override the per-thread shared-recursion slot cap (program-wide; positive integer)")
+
 add_library(recursive_shared_mutex INTERFACE)
 add_library(rsm::recursive_shared_mutex ALIAS recursive_shared_mutex)
 
@@ -31,6 +39,15 @@ target_include_directories(recursive_shared_mutex
 )
 
 target_compile_features(recursive_shared_mutex INTERFACE cxx_std_17)
+
+if(NOT RSM_SHARED_SLOT_COUNT STREQUAL "")
+	if(NOT RSM_SHARED_SLOT_COUNT MATCHES "^[1-9][0-9]*$")
+		message(FATAL_ERROR
+			"RSM_SHARED_SLOT_COUNT must be a positive integer (got '${RSM_SHARED_SLOT_COUNT}')")
+	endif()
+	target_compile_definitions(recursive_shared_mutex
+		INTERFACE RSM_SHARED_SLOT_COUNT=${RSM_SHARED_SLOT_COUNT})
+endif()
 
 # The header reports misuse with std::system_error, so it needs C++ exceptions.
 # cl.exe enables them by default but clang-cl does not (/EHsc), and some MSVC

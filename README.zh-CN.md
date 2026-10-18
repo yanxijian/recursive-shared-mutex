@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:b24765cb794e -->
+<!-- translated-from: README.md sha256:c4ffd769672a -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -60,12 +60,14 @@ std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
 
 | 宏 | 默认值 | 作用 |
 |---|---|---|
-| `RSM_SHARED_SLOT_COUNT` | `256` | 每线程跟踪的 mutex 上限；一个槽位占 16 B TLS，所以默认每线程 4 KB。线程极多时可调小。 |
+| `RSM_SHARED_SLOT_COUNT` | `256` | 每线程跟踪的 mutex 上限；一个槽位占 16 B TLS，所以默认每线程 4 KB。线程极多时可调小。它决定类成员数组的大小，因此所有 TU 必须使用同一个值，绝不能按 target 单独设置。 |
 | `RSM_VERSION_MAJOR/MINOR/PATCH`、`RSM_VERSION` | `0/4/0` | 头文件版本，供只能看到这个文件的消费者（FetchContent）使用。与 `project(VERSION)` 保持一致。 |
 | `RSM_BACKEND_SRWLOCK` | MinGW 上开，其它平台关 | 使用原生 Win32 SRWLOCK 包装作为后端。在 `__MINGW32__` 上自动选中，因为那里的另一个选择不可靠。 |
 | `RSM_BACKEND_STD` | 关 | 即使在 MinGW 上也强制 `std::shared_mutex`。仅用于复现 winpthreads 缺陷；每周的 CI 探针正是这么做的。 |
 | `RSM_NO_DEBUG_ASSERT` | 关 | 关闭仅 Debug 的"持锁析构"断言。 |
 | `RSM_NO_THREAD_MIGRATION_NOTICE` | 关 | 静音 C++20 协程模式下的提示。 |
+
+`RSM_SHARED_SLOT_COUNT` 属于类定义的一部分，不是私有调参项：它决定每线程槽位数组的大小。程序中的每个 TU 都必须使用同一个值。只给某个 target 或某个源文件设置该宏属于 ODR 违规（IFNDR），链接器可能静默合并其中一份定义，让其它 TU 拿到错误大小的槽表。通过 `add_subdirectory()`/FetchContent 引入时，它的 cache 变量会传播给所有链接它的 target；安装后的 package 固化了构建时使用的值，所有消费者必须沿用该值，直接包含头文件的消费者则必须在全局设置该宏。
 
 ## 与 `std::recursive_mutex` 的跑分对比
 
@@ -210,6 +212,8 @@ rsm::metrics::set_recorder(&stats);
   `lock_shared`/`unlock_shared` 序列必须留在同一个模块的 TLS 域内，或者把 TLS 状态托管到单一导出模块。
   违反这一条是未定义行为，不只是残槽——[examples/cross_module_hazard](examples/cross_module_hazard)
   用真实 DLL/.so 复现了它。
+- 本线程仍持有共享锁时析构 mutex 是未定义行为。Debug 构建会断言；在 `NDEBUG` 或 `RSM_NO_DEBUG_ASSERT`
+  下析构会静默移除本线程槽位作为止损，但这并不意味着析构是安全的。
 - 一个线程最多同时持有 `kSharedSlotCount`（256）把共享锁（约 4 KB TLS/线程）。第 257 次 `lock_shared`
   抛 `resource_unavailable_try_again`；`try_lock_shared` 返回 `false`。解锁即回收，所以顺序碰任意多把
   mutex 都没问题。
