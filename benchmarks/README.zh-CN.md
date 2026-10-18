@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:fcec4d8ba20e -->
+<!-- translated-from: README.md sha256:2a87a9beb6dd -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -22,34 +22,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run_bench.ps1 -Toolchain b
 
 ## 自动化
 
-[`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) 在固定的 `windows-2022` runner 上跑这些场景：
+[`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) 在固定的 `windows-2022` runner 上跑这些场景。
 
-- **每周（周一 03:00 UTC）**及手动触发：测量 MSVC 与 MinGW，并**自行把刷新后的 `results/ci-*.md` 提交到 `main`**
-  （默认 `update_mode: auto-merge`；`pull-request` 会开 PR 留待评审，`commit` 直接提交到工作流所在分支，
-  `none` 只测量）。除非每个改动路径都匹配 `benchmarks/results/ci-*.md`，否则拒绝提交，因此流水线碰不到代码，
-  也碰不到桌面机器的数字。
-- **改动 `include/**` 的 PR**（是库本身，不是跑分脚本或这些文档）：短跑一遍并与已提交的基线比较。
-  **只有 S6（分片）和 S7（纯独占）会卡住 job**，阈值 40%。在 4 核 runner 上，"读并行"类场景按构造就贴着 1.0×
-  ——核数不足以让读者重叠——所以那里 ±25% 的波动是调度噪声而不是回归（实测：S3 从 1.01× 到 0.76×，
-  而其他场景都在 ±6% 内）。S6/S7 衡量的是本库自身的包装成本，真正的回归会体现在那里。
+- **每周（周一 03:00 UTC）**及手动触发：默认 `mode=compare`，两个实现放在同一个进程里交替运行（ABBA），
+  同时写出 `results/compare-ci-<toolchain>.md`（下一次的 gate 基线）和给 Bencher 的 BMF。默认
+  `update_mode: auto-merge` 只提交 `compare-ci-*.md`，且要求每个改动路径都匹配这个模式；`pull-request`
+  会开 PR 留待评审，`commit` 提交到当前分支，`none` 只测量。
+- **改动 `include/**` 的 PR**：短跑一次并与已提交的 `compare-ci-msvc.md` 比较。只有 S6（分片）和
+  S7（纯独占）会卡住 job，阈值 20%。在 4 核 runner 上"读并行"类场景按构造贴着 1.0×，能反映包装成本
+  变化的是 S6/S7。
+- 工作流从不合并 pull request，包括 `pull-request` 模式自己开的那个。唯一的自动合并是 job 几秒前创建
+  的结果提交，且要通过上面的路径检查；gate job 只读。
 
-它**从不合并 pull request**：既不合它自己开的 PR（那个模式是 `pull-request`，会原样留着），更不合别人的。
-唯一的自动合并是 job 自己在几秒前创建的结果分支，且必须每个改动路径都匹配 `benchmarks/results/ci-*.md`。
-人类 PR 只被 gate job *检查*，而该 job 是 `permissions: contents: read`，物理上没有合并权限。
+注意事项：
 
-刻意的限制与注意事项：
+- 绝对 ops/s 属于产出它的机器。要看的是同一次运行内相对 `recursive_mutex` 的比值。
+- 闸门只使用同一 runner 上 CI 自己产出的报告。每份 compare 报告都会写明有多少轮基线是健康的
+  （达到本轮最好成绩的 80% 以内）；健康轮次少于 3 的场景跳过，而不是判失败。
+- GitHub runner 只有 4 核。共享锁要读者多于核数才有收益，所以 CI 上 S1–S5 接近 1.0×，而 32 核桌面
+  能拉开明显差距。CI 用于同硬件上的漂移检测，不是性能结论；少于 8 核时报告会自己注明。
+- `update_mode: pull-request` 需要在 Settings > Actions > General 打开
+  *Allow GitHub Actions to create and approve pull requests*；auto-merge 不需要任何设置。
 
-- 绝对 ops/s 属于产出它的那台机器。真正该看的是**同一次运行内**相对 `recursive_mutex` 的加速比。
-- 闸门只和 CI 自己产出的基线比较（文件里写着 `Runner: GitHub Actions`）。手工测的文件在不同硬件上，
-  因此在工作流刷新过一次之前，闸门只告警而不失败。
-- **GitHub runner 只有 4 核。** 共享锁的收益来自"读者数 > 核数"，所以 CI 上 S1–S5 的加速比会塌到接近 1.0
-  （实测 0.8–1.06×），而 32 核桌面能到 13×。CI 数字用于同一硬件上的逐次回归检测，不是绝对结论；
-  `run_bench.ps1` 在检测到少于 8 核时会在报告里自动注明。
-- 自动合并不需要任何仓库设置，因为根本不涉及 PR。只有 `update_mode: pull-request` 需要打开
-  Settings > Actions > General > *Allow GitHub Actions to create and approve pull requests*；
-  该设置为关时 job 只告警并打印比较链接。
-
-在大机器上让这些指标有意义之前，先本地跑：
+在大机器上让指标有意义之前，先本地跑：
 
 ```powershell
 # 例如在 32 核桌面上
@@ -74,9 +69,9 @@ fork 或新克隆无需账号即可验证格式。
 ## 这些数字有多准？
 
 不太准，报告自己也这么说：每份报告都带一行 `Run-to-run spread`，即各次重复之间实测的最小..最大值。
-在一台忙碌的 32 核桌面上，中位离差约 40%，balanced 场景在同一二进制的不同运行之间曾波动超过 250%。
-请把加速比当作数量级——"读密集嵌套负载上快一个数量级"，而不是"13.59×"——漂移请用同一固定 runner 产出的
-`ci-*.md`。
+在一台忙碌的 32 核桌面上，中位离差 18–48%，最差的场景（MSVC 的 S1）在同一二进制的不同运行之间
+曾波动 245%。
+请把加速比当作数量级——"读密集嵌套负载上快一个数量级"，而不是"13.59×"——漂移请用同一固定 runner 上 `compare-ci-*.md` 的配对报告。
 
 `-Repeats` 提高的是置信度，不是机器的安静程度：测量前把其他东西都关掉，否则测出来的是你的浏览器。
 
@@ -86,7 +81,7 @@ fork 或新克隆无需账号即可验证格式。
 `yield()` 次数，以及进程 CPU 毫秒（user/kernel 分开）。`run_bench.ps1` 会把它们
 （多次重复的中位数）汇总成报告里的 **Telemetry** 表。
 
-这些是诊断量，不是 gate：在 S3 上，`recursive_mutex` 基线的失败次数可以是 RSM 的十倍，
+这些是诊断量，不是 gate：在 S3 上，`recursive_mutex` 基线的失败次数可以比 RSM 高两个数量级，
 而 RSM 自己的数字保持平稳——真正让 speedup 摆动的是前者。kernel 占比高说明时间花在
 调度器里，而不是锁上。
 
@@ -101,8 +96,8 @@ fork 或新克隆无需账号即可验证格式。
 说明了这个数字里有多少是基线行为、多少是库本身。这是每周的默认路径：
 `mode=compare`（定时任务的默认值）写出 `compare-ci-<toolchain>.md`（提交进仓库，
 作为下一次运行的 gate 基线）以及发给 Bencher 的 BMF，一次测量同时供给 gate 与绝对历史。
-gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过；`ci-*.md` 保留给 pull request
-的门槛和手动 `measure` 运行。
+gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过。pull request 的门槛也用这份报告；
+`measure` 模式保留给桌面数字和手动检查。
 
 ## 场景
 
@@ -123,12 +118,12 @@ gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过
 - [results/msvc.md](results/msvc.md)
 - [results/mingw-gcc.md](results/mingw-gcc.md)
 
-`results/ci-<toolchain>.md` —— 4 核 GitHub runner，由每周工作流刷新。保留它只为在同一硬件上检测并卡住漂移；
+`results/compare-ci-<toolchain>.md` —— 4 核 GitHub runner，由每周的 compare 运行刷新。它是下一次 gate 的基线；
 **不要拿它和上面那两份比较**。
 
 每份报告都记录它测的是哪个后端（`- Backend: ...`），因为 MinGW 的数字在 v0.3.0 改变了含义：以前是 winpthreads 上的
 `std::shared_mutex`，现在是原生 SRWLOCK 包装。v0.3.0 之前生成的报告在 MinGW 一栏写的是 `std::shared_mutex`，
 与之后的不可比。
 
-- [results/ci-msvc.md](results/ci-msvc.md)
-- [results/ci-mingw-gcc.md](results/ci-mingw-gcc.md)
+- [results/compare-ci-msvc.md](results/compare-ci-msvc.md)
+- [results/compare-ci-mingw-gcc.md](results/compare-ci-mingw-gcc.md)

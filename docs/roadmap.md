@@ -129,7 +129,7 @@ the standard's trade-off and a fair backend costs readers.
 - Compile-time knobs: `RSM_SHARED_SLOT_COUNT`, `RSM_VERSION`, `RSM_NO_DEBUG_ASSERT`,
   `RSM_BACKEND_STD`.
 - `rsm::CacheAlignedRecursiveSharedMutex` for sharded arrays (~2x there).
-- Benchmark automation that refreshes `benchmarks/results/ci-*.md`, and a repo rule
+- Benchmark automation that refreshes `benchmarks/results/compare-ci-*.md`, and a repo rule
   set (`AGENTS.md`) checked in CI.
 - `benchmarks/results/*.md` re-measured on v0.3.0, now with medians and a spread line.
 

@@ -18,22 +18,20 @@ The driver is built through CMake (`-DRSM_BUILD_BENCHMARKS=ON`, target `bench_rs
 
 ## Automation
 
-[`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) runs these scenarios on a pinned `windows-2022` runner:
+[`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) runs these scenarios on a pinned `windows-2022` runner.
 
-- **Weekly (Mon 03:00 UTC)** and on demand: measure MSVC and MinGW and **commit the refreshed `results/ci-*.md` to `main` by itself** (`update_mode: auto-merge` by default; `pull-request` opens a PR and leaves it for review, `commit` to whatever branch the workflow runs on, `none` only measures). The commit is refused unless every changed path matches `benchmarks/results/ci-*.md`, so the pipeline cannot touch code or the desktop numbers.
-- **On PRs touching `include/**`** (the library, not the harness or these files): a short run compared against the committed baseline. **Only S6 (sharded) and S7 (exclusive-only) gate the job**, at a 40% threshold.
-  On a 4-core runner the read-parallelism scenarios sit at parity by construction - there are not enough cores for readers to overlap - so a 25% swing there is scheduling noise, not a regression (observed: S3 1.01x → 0.76x while every other scenario stayed within ±6%). S6 and S7 measure this library's own wrapper cost, which is what a real regression would move.
+- **Weekly (Mon 03:00 UTC) and on demand:** the default `mode=compare` runs both implementations in one process, alternating ABBA, and writes two files: `results/compare-ci-<toolchain>.md` (the next run's gate baseline) and the BMF file Bencher ingests. With `update_mode: auto-merge` the job commits only the `compare-ci-*.md` file, and only if every changed path matches that pattern. `pull-request` opens a PR and leaves it for review, `commit` commits to the current branch, `none` measures without committing.
+- **On pull requests touching `include/**`:** a short comparison against the committed `compare-ci-msvc.md`. Only S6 (sharded) and S7 (exclusive-only) gate, at 20%. On four cores the read-parallelism scenarios sit at parity by construction; S6/S7 are the ones that can show the wrapper cost moving.
+- The workflow never merges a pull request, including the one `pull-request` mode opens. The only automatic merge is the results commit this job created seconds earlier, after the path check above; the gate job runs read-only.
 
-It never merges a pull request: not one it opens itself (that mode is `pull-request`, and it leaves the PR alone) and certainly not a human's. The only automatic merge is the results branch the job created seconds earlier, after every changed path matched `benchmarks/results/ci-*.md`. Human PRs are only *checked* by the gate job, which runs `permissions: contents: read` and therefore cannot merge anything.
+Worth knowing:
 
-Deliberate limits and caveats:
+- Absolute ops/s belong to the runner that produced them. Read the ratio against `recursive_mutex`, measured in the same run.
+- The gate only uses a report CI produced on the same runner. Each compare report says how many rounds had a healthy baseline (within 80% of its best); scenarios with fewer than three healthy rounds are skipped, not failed.
+- GitHub runners have four cores. Shared locking needs more readers than cores to pay off, so S1-S5 sit near parity on CI even though a 32-core desktop shows a large win. CI is for drift detection, not for the performance story; the report says so when it sees fewer than eight cores.
+- `update_mode: pull-request` needs *Allow GitHub Actions to create and approve pull requests* under Settings > Actions > General; auto-merge needs no setting.
 
-- Absolute ops/s belong to the runner that produced them. The number to look at is the speedup vs `recursive_mutex` measured **in the same run**.
-- The gate only compares against a baseline that CI produced itself (the file says `Runner: GitHub Actions`). The hand-measured files are on different hardware, so the gate warns instead of failing until the workflow has refreshed them once.
-- **GitHub runners have 4 cores.** Shared locking pays off when readers outnumber cores, so on CI the S1-S5 speedups collapse towards parity (measured: 0.8-1.06x) even though a 32-core desktop shows 13x. CI numbers are for run-to-run regression detection on fixed hardware, not for the absolute story; the run_bench.ps1 report says so inline when it sees fewer than 8 cores.
-- Auto-merge needs no repository setting, because no pull request is involved. Only `update_mode: pull-request` needs Settings > Actions > General > *Allow GitHub Actions to create and approve pull requests*; the job warns and prints a compare link if that is off.
-
-Before the metrics mean anything on a big machine, run it locally:
+A local run on a big machine:
 
 ```powershell
 # e.g. on a 32-core desktop
@@ -65,10 +63,10 @@ gate.
 
 Not very, and the report says so: each one carries a `Run-to-run spread` line, the
 observed min..max across the repeats. Measured on a busy 32-core desktop, the
-median spread is around 40% and the balanced scenario has swung over 250% between
-runs of the same binary. Treat the speedups as order of magnitude - "an order of
-magnitude faster on read-heavy nested workloads", not "13.59x" - and use the
-`ci-*.md` files, which are produced on one fixed runner, for drift.
+median spread is 18-48% and the worst scenario (S1 on MSVC) has swung 245%
+between runs of the same binary. Treat the speedups as order-of-magnitude claims
+("reads are much faster", not "13.59x"), and use the `compare-ci-*.md` reports,
+which pair both implementations on one fixed runner, for drift.
 
 `-Repeats` raises the confidence but not the machine's quietness: close
 everything else before measuring, or the numbers describe your browser.
@@ -81,9 +79,9 @@ followed them, and the process CPU milliseconds split into user and kernel time.
 `run_bench.ps1` aggregates them (medians across repeats) into a **Telemetry**
 table in each report.
 
-They are diagnostic, not a gate: on S3 the `recursive_mutex` baseline can show ten
-times the failure rate of RSM while RSM's numbers stay flat, which is what moves
-the speedup. A high kernel share means the run spent its time in the scheduler,
+They are diagnostic, not a gate: on S3 the `recursive_mutex` baseline can fail two
+orders of magnitude more often than RSM while RSM's own numbers stay flat, which
+is what moves the speedup. A high kernel share means the run spent its time in the scheduler,
 not in the lock.
 
 ## Interleaved comparison (`-Compare`)
@@ -102,11 +100,11 @@ ratio inflates. The healthy count says how much of the number is baseline
 behaviour rather than the library.
 
 This is the weekly path: `mode=compare` (the scheduled default) writes
-`compare-ci-<toolchain>.md` (committed - it is the next run's gate baseline) and
-the BMF that goes to Bencher, so one measurement feeds both the gate and the
-absolute history. The gate judges the healthy ratio against the previous report
-and skips scenarios with fewer than three healthy rounds; `ci-*.md` is retained
-for the pull-request screen and for manual `measure` runs.
+`compare-ci-<toolchain>.md` (committed; it is the next run's gate baseline) and
+the BMF for Bencher from the same run. The gate compares the healthy ratio
+against the previous report and skips scenarios with fewer than three healthy
+rounds. The pull-request gate uses the same report; `measure` mode remains for
+the desktop numbers and manual checks.
 
 ## Scenarios
 
@@ -127,10 +125,9 @@ for the pull-request screen and for manual `measure` runs.
 - [results/msvc.md](results/msvc.md)
 - [results/mingw-gcc.md](results/mingw-gcc.md)
 
-`results/ci-<toolchain>.md` - the 4-core GitHub runner, refreshed by the weekly workflow. Kept only so run-to-run drift can be detected and gated on identical hardware; **do not compare these with the files above**.
+`results/compare-ci-<toolchain>.md` - the 4-core GitHub runner, refreshed by the weekly compare run. It is the next run's gate baseline; **do not compare it with the desktop files above**.
 
 Each report records the backend it measured (`- Backend: ...`), because MinGW's numbers changed meaning in v0.3.0: it used to be `std::shared_mutex` over winpthreads and is now the native SRWLOCK wrapper. Reports generated before v0.3.0 say `std::shared_mutex` on MinGW and are not comparable with the ones after it.
 
-
-- [results/ci-msvc.md](results/ci-msvc.md)
-- [results/ci-mingw-gcc.md](results/ci-mingw-gcc.md)
+- [results/compare-ci-msvc.md](results/compare-ci-msvc.md)
+- [results/compare-ci-mingw-gcc.md](results/compare-ci-mingw-gcc.md)

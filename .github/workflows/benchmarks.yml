@@ -1,32 +1,24 @@
-# Benchmark automation: run the perf scenarios in CI, refresh the checked-in
-# numbers, and gate PRs on a regression.
+# Benchmark automation: the weekly throughput measurement and the PR gate.
 #
 # Design notes
-#  * Correctness is covered by ci.yml and platform-matrix.yml; this workflow is
-#    only about throughput.
-#  * Numbers from GitHub's shared runners drift a few percent between runs and
-#    change outright between hardware generations, so:
-#      - the image is pinned (windows-2022) to keep runs comparable;
-#      - every pair is measured -Repeats times and the median is reported;
-#      - the meaningful value is the speedup vs recursive_mutex measured in the
-#        same run, not absolute ops/s;
-#      - the gate only compares against a baseline CI itself produced. The files
-#        committed today were measured on a developer machine, so until this
-#        workflow has refreshed them once, the gate warns instead of failing.
+#  * Correctness is ci.yml / platform-matrix.yml; this workflow only measures
+#    throughput.
+#  * The weekly run uses mode=compare: the baseline and the library run in one
+#    process, alternating (ABBA), so the ratio is less sensitive to frequency,
+#    placement and background load than two independent processes would be.
+#  * That run writes compare-ci-<toolchain>.md (the next run's gate baseline) and
+#    the BMF file for Bencher. auto-merge commits only the report.
+#  * The image is pinned (windows-2022), and the PR gate compares against the
+#    report from the same runner.
 #  * Bencher tracking is optional (BENCHER_PROJECT + BENCHER_API_KEY); without
-#    them the step validates the BMF file with --dry-run. It is not a gate.
-#  * "Update" opens a PR rather than pushing to main: a weekly bot commit with
-#    +-2% noise is worse than no bot at all.
-#  * PRs opened with GITHUB_TOKEN do not trigger other workflows (GitHub
-#    limitation), so a benchmark PR arrives without checks. That is fine - it
-#    only touches benchmarks/results/ci-*.md.
+#    them the step validates the BMF with --dry-run. It is not a gate.
+#  * The PR gate runs the same comparison and checks S6/S7 at 20%: on four cores
+#    the read-parallelism scenarios sit at parity by construction.
 #
-# HARD RULE - this workflow never merges a pull request. Not one, not even the
-# ones it opens itself, and certainly not a human's. The only automatic merge is
-# `POST /repos/{repo}/merges` for a `bench/refresh-<toolchain>` branch that this
-# same job created seconds earlier, and only after every changed path matched
-# `benchmarks/results/ci-*.md`. Human PRs are only ever *checked* (the gate job),
-# never merged. Keep it that way: do not add `gh pr merge` here.
+# HARD RULE - this workflow never merges a pull request. The only automatic
+# merge is `POST /repos/{repo}/merges` for the results branch this job created
+# seconds earlier, and only after every changed path matched
+# `benchmarks/results/compare-ci-*.md`. Do not add `gh pr merge` here.
 
 name: benchmarks
 
@@ -219,15 +211,14 @@ jobs:
           branch: bench/refresh-${{ matrix.name }}
           delete-branch: true
           add-paths: |
-            benchmarks/results/ci-*.md
             benchmarks/results/compare-ci-*.md
           commit-message: "bench: refresh ${{ matrix.name }} results"
           title: "bench: refresh ${{ matrix.name }} results"
           body: |
-            Automated refresh of `benchmarks/results/ci-${{ matrix.name == 'msvc' && 'msvc' || 'mingw-gcc' }}.md` - the CI-runner numbers used for run-to-run drift detection.
+            Automated refresh of `benchmarks/results/compare-ci-${{ matrix.name == 'msvc' && 'msvc' || 'mingw-gcc' }}.md` - the same-process ABBA report used as the next gate baseline.
 
-            - Measured on a `windows-2022` GitHub runner, medians of ${{ inputs.repeats || '3' }} runs.
-            - Absolute numbers belong to that runner; compare the speedup column.
+            - Measured on a `windows-2022` GitHub runner, ${{ inputs.compare_rounds || '10' }} ABBA rounds of ${{ inputs.seconds || '3' }} s.
+            - Absolute numbers belong to that runner; the table lists the per-scenario ratio, its IQR and the healthy-round count.
             - Opened by `.github/workflows/benchmarks.yml` because `update_mode` is
               `pull-request`: it is left for a human on purpose. The default mode,
               `auto-merge`, does not open a pull request at all. It carries no
@@ -261,7 +252,7 @@ jobs:
           }
           # Refuse to carry anything other than the CI results files.
           $paths = @(git diff --cached --name-only)
-          $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/(ci|compare-ci)-[A-Za-z0-9._-]+[.]md$' })
+          $unexpected = @($paths | Where-Object { $_ -notmatch '^benchmarks/results/compare-ci-[A-Za-z0-9._-]+[.]md$' })
           if ($unexpected.Count -gt 0) {
             Write-Host ("::warning::not committing: unexpected paths {0}" -f ($unexpected -join ", "))
             exit 0
@@ -320,22 +311,18 @@ jobs:
       - name: Measure and compare
         shell: pwsh
         run: |
-          $baseline = "benchmarks/results/ci-msvc.md"
-          $fromCi = Test-Path $baseline
-          if ($fromCi) {
-            # Only S6 (sharded) and S7 (exclusive-only) are gated. On a 4-core runner
-            # the read-parallelism scenarios sit at parity by construction - there are
-            # not enough cores for readers to overlap - so a -25% swing there is
-            # scheduling noise, not a regression (measured: S3 1.01x -> 0.76x with every
-            # other scenario inside +-6%). S6 and S7 measure this library's own wrapper
-            # cost, which is what a real regression would move.
-            Write-Host "::notice::comparing S6/S7 against the committed CI baseline (40% threshold)"
-            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 2 -Repeats 2 `
-              -OutDir "$env:RUNNER_TEMP/bench" -Baseline $baseline -RegressionPct 40 -GateScenarios "S6,S7"
+          $baseline = "benchmarks/results/compare-ci-msvc.md"
+          if (Test-Path $baseline) {
+            # S6/S7 only: on four cores the read-parallelism scenarios sit at
+            # parity by construction, so a swing there is scheduling noise. S6 and
+            # S7 track the wrapper cost a real regression would move.
+            Write-Host "::notice::comparing S6/S7 against compare-ci-msvc.md (20% threshold)"
+            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 1 -Rounds 5 `
+              -Compare -OutDir "$env:RUNNER_TEMP/bench" -Baseline $baseline -RegressionPct 20 -GateScenarios "S6,S7"
           }
           else {
-            Write-Host "::warning::no CI baseline yet (benchmarks/results/ci-msvc.md); running without a gate. Dispatch this workflow once to seed it."
-            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 2 -Repeats 3 `
-              -OutDir "$env:RUNNER_TEMP/bench" -RegressionPct 0
+            Write-Host "::warning::no compare baseline yet (benchmarks/results/compare-ci-msvc.md); running without a gate."
+            pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 1 -Rounds 5 `
+              -Compare -OutDir "$env:RUNNER_TEMP/bench" -RegressionPct 0
           }
           if ($LASTEXITCODE -ne 0) { throw "benchmark gate failed" }

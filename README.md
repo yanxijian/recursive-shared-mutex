@@ -87,7 +87,7 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
 > real work between lock operations), so the ratios differ: that harness reports 1.03× (MSVC)
 > and 1.42× (MinGW, native backend) against 1.17× and 1.52× here. Both agree on the conclusion -
 > parity within noise on the exclusive path - and neither transfers to another machine.
-> Run-to-run noise on this host reaches 250% on the balanced scenario, so read the numbers as
+> Run-to-run noise on this host reaches 245% on the read-heavy scenario (S1), so read the numbers as
 > order of magnitude.
 
 - **MSVC / clang with the MSVC STL**: the wrapper costs about 1.3 ns per lock

@@ -331,12 +331,11 @@ function Invoke-Toolchain([string]$kind) {
 	if (-not $Quiet) { Write-Host "Building bench_rsm ($kind) ..." }
 	$exe = Build-Bench $kind
 
-	# Two families of file on purpose:
-	#   results/<toolchain>.md     - hand-measured on a real workstation, the
-	#                                representative numbers quoted in the README;
-	#   results/ci-<toolchain>.md  - the 4-core GitHub runner, kept only so run
-	#                                to run drift can be detected and gated on
-	#                                identical hardware.
+	# Two families of file:
+	#   results/<toolchain>.md            - hand-measured on a real workstation,
+	#                                       the representative numbers in the README;
+	#   results/compare-ci-<toolchain>.md - the 4-core GitHub runner, the weekly
+	#                                       ABBA report used as the gate baseline.
 	$name = if ($kind -eq "msvc") { "msvc" } else { "mingw-gcc" }
 	if ($env:GITHUB_ACTIONS -eq "true") { $name = "ci-$name" }
 	# Which backend these numbers come from. On MinGW it changed from
@@ -418,6 +417,7 @@ function Invoke-Toolchain([string]$kind) {
 					if (-not $old.ContainsKey($r.Scenario)) { continue }
 					$o = $old[$r.Scenario]
 					if ($o.Healthy -lt 3) { continue }
+					if ($o.HealthyRatio -le 0) { continue }
 					$isGated = ($gated.Count -eq 0) -or (@($gated | Where-Object { $r.Scenario.StartsWith($_) }).Count -gt 0)
 					$delta = ($r.HealthyRatio - $o.HealthyRatio) / $o.HealthyRatio * 100.0
 					$state = if (-not $isGated) { "not gated" } elseif ($RegressionPct -gt 0 -and $delta -le -$RegressionPct) { "REGRESSION" } elseif ($delta -ge $RegressionPct) { "faster" } else { "within threshold" }

@@ -190,9 +190,9 @@ handed to another thread.
 ### R13 - Benchmark numbers carry their machine **[review]**
 
 `benchmarks/results/*.md` are hand-measured on a desktop;
-`benchmarks/results/ci-*.md` and `benchmarks/results/compare-ci-*.md` come from the
-4-core CI runner and are only for run-to-run drift. Never quote a CI number as a
-performance claim, and never let the automation overwrite the desktop files.
+`benchmarks/results/compare-ci-*.md` comes from the 4-core CI runner and is only
+for run-to-run drift. Never quote a CI number as a performance claim, and never
+let the automation overwrite the desktop files.
 
 ## Working with this repository
 
@@ -251,18 +251,18 @@ performance claim, and never let the automation overwrite the desktop files.
   toolchain fixes itself; that red is the instruction to delete the job. Do not
   flip it back into a push-time failure: a permanently red cell teaches everyone
   to ignore red.
-- **Benchmark automation** commits `benchmarks/results/compare-ci-*.md` (and, in
-  `mode=measure`, `ci-*.md`): the scheduled run (`update_mode: auto-merge`, the
-  default) pushes that commit through the API, so no pull request is involved.
-  The weekly run uses `mode=compare`; its healthy-ratio gate reads the previous
-  `compare-ci-*.md`. `update_mode: pull-request` does open one and leaves it for a
-  human - that is the only mode that touches the pull-request list. Do not add
-  `gh pr merge` to any workflow.
+- **Benchmark automation** commits only `benchmarks/results/compare-ci-*.md`:
+  the scheduled run (`update_mode: auto-merge`, the default) pushes that commit
+  through the API, so no pull request is involved. The weekly run uses
+  `mode=compare`; its healthy-ratio gate reads the previous `compare-ci-*.md`.
+  `update_mode: pull-request` does open one and leaves it for a human - that is
+  the only mode that touches the pull-request list. Do not add `gh pr merge` to
+  any workflow.
 - **Bencher tracking is optional and off by default.** `benchmarks.yml` writes
   BMF when the `BENCHER_PROJECT` variable and `BENCHER_API_KEY` secret are set,
   and dry-runs the same file otherwise. It is tracking, not a gate: do not replace
-  the `-RegressionPct` comparison with a Bencher threshold until the noise regime
-  is known, and never make a fork PR depend on the token.
+  the compare gate with a Bencher threshold until the noise regime is known, and
+  never make a fork PR depend on the token.
 - **Catch2:** assertions must run on the main thread. A failing `REQUIRE` inside
   a `std::thread` escapes as `Catch::TestFailureException` and terminates the
   process instead of failing the case.

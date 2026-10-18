@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:c4ffd769672a -->
+<!-- translated-from: README.md sha256:1fb59dce02a0 -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -86,8 +86,8 @@ std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
 >
 > 这与 [benchmarks/results](benchmarks/results) 是**两套不同的框架**（3 秒 × 3 次、加解锁之间有实际工作），
 > 所以比值不同：那套框架报 1.03×（MSVC）与 1.42×（MinGW 原生后端），这里是 1.17× 与 1.52×。
-> 两者结论一致——纯独占路径在噪声范围内持平——但绝对值都不能搬到别的机器上。本机 balanced 场景的
-> 运行间噪声可达 250%，因此请把数字当作数量级来读。
+> 两者结论一致——纯独占路径在噪声范围内持平——但绝对值都不能搬到别的机器上。本机 S1（读多）场景的
+> 运行间噪声可达 245%，因此请把数字当作数量级来读。
 
 - **MSVC / clang 配 MSVC STL**：包装成本约每次加解锁 1.3 ns（4.6 ns vs 裸后端 3.3 ns，均为无争用），而且这个成本
   不再取决于本线程在别处持有多少把共享锁；纯独占开销为 **0.9×–1.2×**，读密集负载总吞吐约提升 **6×–14×**。
