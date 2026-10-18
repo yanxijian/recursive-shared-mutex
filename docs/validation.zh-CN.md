@@ -2,7 +2,7 @@
 
 [English](validation.md) · **简体中文**
 
-<!-- translated-from: docs/validation.md sha256:ee33970457e1 -->
+<!-- translated-from: docs/validation.md sha256:692ea86d0b70 -->
 
 这页定义本仓库里"已验证"是什么意思、证据怎么记录，以及证据**不**覆盖什么。
 soak workflow 的规模按这里定；`verification/soak-history.md` 是账本。
@@ -58,10 +58,28 @@ soak workflow 的规模按这里定；`verification/soak-history.md` 是账本�
 - 树里没有已知的 flaky 测试。
 
 这些数字是下限，不是"覆盖完整"的声明。批次按实测速率定规模：
-`ops_target / (ops_per_second x shards x minutes x 60)` 得到每片小时数。按目前看到的速率
-（桌面 8 线程约 15 M ops/s，4 vCPU runner 约 7.5 M ops/s），10^12 次操作大约是
-**5 个 8 job-hours 的批次**（4 分片 × 120 分钟 × 8 线程）。先跑校准批次，从历史里
-读 `ops`，再决定批次数量。
+`ops_target / (ops_per_second x shards x minutes x 60)` 得到每片分钟数。账本里已有实测值：
+8 分片 × 300 分钟 × 8 线程（40 job-hours）产出 **7.03 x 10^11 次操作**，8 分片 × 60 分钟
+产出 **1.44 x 10^11**，整个账本用了 **62 job-hours 达到 1.03 x 10^12**。短分片约每
+job-hour 2.1 x 10^10，5 小时分片约 1.76 x 10^10（4 vCPU runner 上长跑会降频）。
+下一次定规模前先从历史里读 `ops`。
+
+## 状态（2026-10-18）
+
+依据 `verification/soak-history.md` 里九个已记录批次，Tier 1 与 Tier 2 均已达成：
+
+| 判据 | 结果 |
+|---|---:|
+| `model_check` 操作数 | **1.03 x 10^12** |
+| 不同 seed | **351** |
+| 独占进入 | **1.03 x 10^11** |
+| TSan | **24.1 thread-hours** |
+| 零违规平台 | Linux（长跑）、Windows、ARM64 |
+| 变异测试 | 仍按设计失败 |
+
+平台划分是刻意的：长跑的操作数来自 Linux；Windows 与 ARM64 的行是短批次，证明各自
+工具链上同样零违规。通过是"未观察到失败"的证据，不是证明——见"不覆盖什么"。
+
 
 ## 怎么跑
 

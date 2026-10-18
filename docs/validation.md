@@ -63,11 +63,31 @@ choice, not a resource count.
 
 The numbers are floors, not claims of completeness. Size batches from the
 recorded rate: `ops_target / (ops_per_second x shards x minutes x 60)` gives the minutes
-per shard. The ledger now has the rate: a 4-shard x 120 min x 8-thread batch (8
-job-hours) produced **1.67 x 10^11 operations**, about 2.1 x 10^10 per job-hour.
-10^12 is therefore about **48 job-hours** - one 8-shard x 300 min batch on top of
-what the ledger already holds. Read `ops` from the history before sizing the next
-one; the runner rate is the only input that changes.
+per shard. The ledger now has the rate: an 8-shard x 300 min x 8-thread batch (40
+job-hours) produced **7.03 x 10^11 operations**, an 8-shard x 60 min batch produced
+**1.44 x 10^11**, and the whole ledger needed **62 job-hours for 1.03 x 10^12**.
+Short shards run at about 2.1 x 10^10 operations per job-hour, 5-hour shards at
+about 1.76 x 10^10 (longer runs throttle on a 4-vCPU runner). Read `ops` from the
+history before sizing the next one.
+
+## Status (2026-10-18)
+
+Tier 1 and Tier 2 are met, from the nine recorded batches in
+`verification/soak-history.md`:
+
+| Criterion | Result |
+|---|---:|
+| `model_check` operations | **1.03 x 10^12** |
+| distinct seeds | **351** |
+| exclusive entries | **1.03 x 10^11** |
+| TSan | **24.1 thread-hours** |
+| platforms with zero violations | Linux (long runs), Windows, ARM64 |
+| mutation tests | still fail as designed |
+
+The platform split is deliberate: the long operation count comes from Linux; the
+Windows and ARM64 rows are short batches that show the same zero-violation result
+on their toolchains. A pass is evidence of absence of the observed failures, not
+a proof - see "What this does not cover".
 
 ## Running it
 
