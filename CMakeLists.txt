@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 
 project(recursive_shared_mutex
-	VERSION 0.4.0
+	VERSION 0.4.1
 	DESCRIPTION "C++17 header-only recursive shared_mutex"
 	HOMEPAGE_URL "https://github.com/yanxijian/recursive-shared-mutex"
 	LANGUAGES CXX

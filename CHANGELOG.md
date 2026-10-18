@@ -7,16 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- `run_bench.ps1 -Compare` is now the weekly measurement path: it runs the baseline and the library in one process (ABBA), records per-round ratios and the IQR, and writes `compare-ci-<toolchain>.md` (committed; the next run's gate baseline) plus the BMF for Bencher. The pull-request gate uses the same comparison: it judges the healthy ratio (baseline within 80% of its best round), skips scenarios with fewer than three healthy rounds, and checks S6/S7 at 20%. The old `ci-*.md` files were retired.
-- Benchmark runs report contention telemetry: failed `try_lock`/`try_lock_shared` attempts, the `yield()` calls that follow them, and process user/kernel CPU milliseconds; `run_bench.ps1` adds a Telemetry table to each report. The telemetry does not feed the gate; it shows that the S3 speedup swings come from the `recursive_mutex` baseline's failure rate, not from RSM.
-- Optional Bencher integration: `run_bench.ps1 -Json <path>` emits Bencher Metric Format (throughput median plus min/max per scenario and implementation), and `benchmarks.yml` sends it with `bencher run --adapter json` when the `BENCHER_PROJECT` variable and `BENCHER_API_KEY` secret exist - otherwise it validates the file with `--dry-run`. Bencher is tracking only; the gate is the compare report, not a Bencher threshold.
-- Documented the ODR contract for `RSM_SHARED_SLOT_COUNT`: it sizes the class's slot array, so every translation unit must use the same value. The CMake interface target now propagates an optional `RSM_SHARED_SLOT_COUNT` cache value to all linked targets. The README also states that the destructor's release/`RSM_NO_DEBUG_ASSERT` silent slot cleanup is damage control for UB, not safe destruction.
-- The batch workflow gained a TSan switch (`--mutexes 1`, Unix only) and a runner/label pair for Windows and ARM64, so the same sharded ledger can accumulate TSan thread-hours and per-platform evidence instead of Linux-only ops.
-- `docs/validation.md` (and its Chinese companion) defines the validation contract: what runs, the two ledgers (coverage reported by the test, cost reported by GitHub), the Tier 1/2 exit criteria, batch sizing from the recorded rate, the known TSan lock-order false positive, and what the evidence does not cover.
-- `soak-batch.yml` runs multi-hour `model_check` batches on demand, sharded across runners, summing ops and exclusive entries and optionally committing one row to `verification/soak-history.md` - only that file, and only when `record=true`.
-- The nightly soak derives every seed from `GITHUB_RUN_ID` instead of replaying seeds 1-4 and 0x5EED every night: a fixed seed is coverage theatre, not a soak.
-- Tests can now fail reproducibly. `mutual_exclusion --seed N` prints the seed and keeps a per-thread ring of the last 1024 operations, dumped on a violation; `model_check` does the same and adds a watchdog that turns a self-deadlock into exit 3 with the rings instead of a CI timeout.
-- New `tests/model_check.cpp`: the documented spec as a shadow model over seeded random operation sequences. The single-threaded phase is exact - every return value and error code is predicted, across several mutexes, so per-instance isolation and the slot table are exercised. The concurrent phase asserts only what a thread's own history decides plus per-mutex exclusion: a contended `try_lock` is never over-predicted, because the owner may release between the model read and the call. Mutation-tested (accessor pinned false/true, `unlock` ignoring a nested shared lock): the first is caught by the watchdog, the other two fail the model. `ctest` runs a 2 s pass; `soak.yml` runs four 30 s seeds nightly plus a TSan pass.
+## [v0.4.1] - 2026-10-18
+
+### Added
+
+- `tests/model_check.cpp`: a seeded shadow model of the documented contract. The single-threaded phase predicts every return value and error code across several mutexes; the concurrent phase checks each thread's own history plus per-mutex exclusion. `mutual_exclusion --seed N` and `model_check` print the seed, keep a ring of the last 1024 operations and dump it on a violation; a watchdog turns a self-deadlock into exit 3 instead of a CI timeout.
+- `soak-batch.yml` shards multi-hour `model_check` runs across runners and records one row per batch in `verification/soak-history.md`. `docs/validation.md` defines the Tier 1/2 contract and records the current totals: 1.03e12 operations, 351 seeds, 1.03e11 exclusive entries and 24.1 TSan thread-hours across Linux, Windows and ARM64.
+- Benchmark runs report contention telemetry (failed `try_lock`/`try_lock_shared`, `yield()` calls, user/kernel CPU), and `run_bench.ps1 -Compare` runs the baseline and the library in one process with ABBA rounds. The weekly workflow writes `compare-ci-<toolchain>.md` and the BMF for Bencher from the same run; the PR gate uses the same comparison for S6/S7 at 20%.
+- Optional Bencher tracking: `run_bench.ps1 -Json` emits BMF and `benchmarks.yml` sends it when `BENCHER_PROJECT` and `BENCHER_API_KEY` are configured, otherwise validates it with `--dry-run`.
+
+### Changed
+
+- The nightly soak derives seeds from `GITHUB_RUN_ID` instead of replaying a fixed set.
+- `RSM_SHARED_SLOT_COUNT` has a documented ODR contract, and the CMake interface target propagates the cache value; the README explains the destructor's silent slot cleanup.
+- The benchmark batch workflow gained a TSan switch and Windows/ARM64 runner labels.
+- The old `ci-*.md` benchmark files were retired in favour of `compare-ci-*.md`.
+
 ## [v0.4.0] - 2026-10-18
 
 - Documentation and comments re-synced with the code after a from-scratch audit: a header comment still claimed `tests/backend_contract.cpp` did not cover the "refuse `try_lock()` while this thread holds it shared" promise (check [4] does), a v0.3.1 entry named `ci.yml` as the only workflow for docs-only pushes (it is `hygiene.yml`), a v0.3.0 entry still said 120 columns after the same release raised it to 140, the roadmap dated the metrics header to v0.2.1 (it landed in v0.3.0) and called the ARM64 runner a preview, `benchmarks/README.md` had two literal `?` where `->` and `+-6%` were meant, `docs/platform-notes.md` carried a stray UTF-8 BOM, the suite counts said 25 where there are 29, and the test matrix omitted T13/T14. The README now documents `is_held_exclusive()` and `scripts/tests/`, and the MSVC exclusive-path figure has one source again (`docs/platform-notes.md` §1, 4.6 ns).
@@ -142,7 +148,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub Actions CI (Windows / Ubuntu / macOS)
 - MIT license and standard community health files
 
-[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.4.1...HEAD
+[v0.4.1]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.4.0...v0.4.1
 [v0.4.0]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/yanxijian/recursive-shared-mutex/compare/v0.2.1...v0.3.0
