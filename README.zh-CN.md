@@ -1,6 +1,6 @@
 # recursive-shared-mutex
 
-[English](README.md) · **简体中文**
+**简体中文** · [English](README.md)
 
 <!-- translated-from: README.md sha256:1e739ff575ba -->
 
