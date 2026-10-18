@@ -14,8 +14,8 @@
 #        committed today were measured on a developer machine, so until this
 #        workflow has refreshed them once, the gate warns instead of failing.
 #  * Bencher tracking is optional (BENCHER_PROJECT + BENCHER_API_TOKEN); without
-    them the step validates the BMF file with --dry-run. It is not a gate.
-  * "Update" opens a PR rather than pushing to main: a weekly bot commit with
+#    them the step validates the BMF file with --dry-run. It is not a gate.
+#  * "Update" opens a PR rather than pushing to main: a weekly bot commit with
 #    +-2% noise is worse than no bot at all.
 #  * PRs opened with GITHUB_TOKEN do not trigger other workflows (GitHub
 #    limitation), so a benchmark PR arrives without checks. That is fine - it
