@@ -118,7 +118,39 @@ jobs:
           }
           pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain ${{ matrix.toolchain }} `
             -Seconds ${{ inputs.seconds || '3' }} -Repeats ${{ inputs.repeats || '3' }} `
-            -RegressionPct ${{ inputs.regression_pct || '0' }}
+            -RegressionPct ${{ inputs.regression_pct || '0' }} `
+            -Json "$env:RUNNER_TEMP\bmf-${{ matrix.name }}.json"
+
+      - name: Send to Bencher (optional tracking)
+        # Off unless BENCHER_PROJECT and BENCHER_API_TOKEN are configured. Without
+        # them the same BMF file is validated with --dry-run, so forks and fresh
+        # clones still exercise the format. This is tracking only: the gate is
+        # still the -RegressionPct comparison above, and no threshold is set here.
+        if: inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain
+        shell: pwsh
+        env:
+          BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
+          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          BMF_FILE: ${{ runner.temp }}\bmf-${{ matrix.name }}.json
+        run: |
+          $url = "https://github.com/bencherdev/bencher/releases/download/v0.6.13/bencher-v0.6.13-windows-x86-64.exe"
+          $exe = Join-Path $env:RUNNER_TEMP "bencher.exe"
+          Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing
+          $hash = (Get-FileHash -Algorithm SHA256 $exe).Hash.ToLower()
+          if ($hash -ne "478da05ad5086433046065e0c5c5b151982b5128e2b65730c3ce9e20d4eb37e6") {
+            throw "bencher checksum mismatch: $hash"
+          }
+          $bencherArgs = @("run", "--adapter", "json", "--file", $env:BMF_FILE)
+          if ($env:BENCHER_PROJECT -and $env:BENCHER_API_TOKEN) {
+            $bencherArgs += @("--project", $env:BENCHER_PROJECT, "--token", $env:BENCHER_API_TOKEN,
+                              "--branch", "${{ github.ref_name }}", "--ci-on-the-fly")
+            Write-Host "Sending BMF to Bencher project $env:BENCHER_PROJECT"
+          } else {
+            $bencherArgs += "--dry-run"
+            Write-Host "::notice::BENCHER_PROJECT / BENCHER_API_TOKEN not configured; validating BMF with --dry-run"
+          }
+          & $exe @bencherArgs
+          if ($LASTEXITCODE -ne 0) { throw "bencher failed with exit code $LASTEXITCODE" }
 
       - name: Show what changed
         if: inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain

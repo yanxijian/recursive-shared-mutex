@@ -16,6 +16,25 @@ Each (scenario, implementation) pair runs in a **fresh process** so MinGW `share
 
 The driver is built through CMake (`-DRSM_BUILD_BENCHMARKS=ON`, target `bench_rsm`), so nothing depends on where Visual Studio happens to be installed.
 
+## Continuous tracking (optional, Bencher)
+
+`run_bench.ps1 -Json <path>` writes [Bencher Metric Format](https://bencher.dev/docs/reference/bencher-metric-format/):
+one JSON object per (toolchain, scenario, implementation) with a `throughput`
+measure (median and min/max across the repeats). `benchmarks.yml` feeds that file
+to `bencher run --adapter json` after measuring.
+
+It is **tracking only**. The gate is still the `-RegressionPct` comparison above,
+and CI sets no thresholds. Without the repository variable `BENCHER_PROJECT` and
+the secret `BENCHER_API_TOKEN`, the step runs `--dry-run` and prints the report to
+the log, so a fork or a fresh clone validates the format without an account.
+
+To enable it: create the project (or let `--ci-on-the-fly` create it on the first
+run), then set `BENCHER_PROJECT` as a repository variable and
+`BENCHER_API_TOKEN` as a secret. Start without thresholds - wall-clock noise on a
+shared runner is tens of percent, so a threshold only means something after a few
+weeks of history, and instruction-count benchmarks are a better basis for a hard
+gate.
+
 ## Automation
 
 [`.github/workflows/benchmarks.yml`](../.github/workflows/benchmarks.yml) runs these scenarios on a pinned `windows-2022` runner:

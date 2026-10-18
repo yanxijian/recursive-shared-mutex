@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:bc6b85bc5cd1 -->
+<!-- translated-from: README.md sha256:99ab75f81990 -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -19,6 +19,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run_bench.ps1 -Toolchain b
 每个组合跑 `-Repeats` 次并报告**中位数**：在共享机器上单次运行噪声太大，无法用于比较。
 
 跑分驱动通过 CMake 构建（`-DRSM_BUILD_BENCHMARKS=ON`，目标 `bench_rsm`），因此不依赖 Visual Studio 装在哪里。
+
+## 持续跟踪（可选，Bencher）
+
+`run_bench.ps1 -Json <path>` 输出 [Bencher Metric Format](https://bencher.dev/docs/reference/bencher-metric-format/)：
+每个（工具链, 场景, 实现）一个 JSON 对象，含 `throughput`（多次重复的中位数与 min/max）。
+`benchmarks.yml` 在测量后把该文件交给 `bencher run --adapter json`。
+
+这**只是跟踪**。gate 仍是上面的 `-RegressionPct` 比较，CI 不设置阈值。没有仓库变量
+`BENCHER_PROJECT` 和 secret `BENCHER_API_TOKEN` 时，步骤用 `--dry-run` 把报告打到日志，
+fork 或新克隆无需账号即可验证格式。
+
+启用方法：创建项目（或让首次运行的 `--ci-on-the-fly` 创建），把 `BENCHER_PROJECT` 设为
+仓库变量、`BENCHER_API_TOKEN` 设为 secret。先不要设阈值——共享 runner 的墙钟噪声有几十个
+百分点，阈值要等积累几周历史才有意义；真要硬 gate，指令数基准更合适。
 
 ## 自动化
 

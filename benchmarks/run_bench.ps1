@@ -27,6 +27,10 @@ param(
 	[ValidateRange(1, 25)]
 	[int]$Repeats = 1,
 	[string]$OutDir = "",
+	# Optional Bencher Metric Format output: one JSON object with a throughput
+	# measure per (scenario, implementation), median plus min/max across -Repeats.
+	# benchmarks.yml feeds it to `bencher run --adapter json` when configured.
+	[string]$Json = "",
 	[ValidateSet("full", "none")]
 	[string]$BarChart = "full",
 	[string]$Baseline = "",
@@ -100,7 +104,15 @@ function Invoke-Config($exe, $impl, $sc) {
 		($sorted[$sorted.Count - 1] - $sorted[0]) / $median * 100.0
 	}
 	else { 0.0 }
-	return [pscustomobject]@{ Raw = $last; MedianOpsPerSecond = $median; SpreadPct = $spread }
+	$min = $sorted[0]
+	$max = $sorted[$sorted.Count - 1]
+	return [pscustomobject]@{
+		Raw = $last
+		MedianOpsPerSecond = $median
+		MinOpsPerSecond = $min
+		MaxOpsPerSecond = $max
+		SpreadPct = $spread
+	}
 }
 
 function Get-CompilerLabel([string]$kind) {
@@ -241,8 +253,24 @@ function Invoke-Toolchain([string]$kind) {
 		if (-not $Quiet) { Write-Host ">> [$kind] $($sc.Name)" }
 		$baselineRow = Invoke-Config $exe "recursive_mutex" $sc
 		$impl = Invoke-Config $exe $sc.ImplRsm $sc
-		$rows.Add([pscustomobject]@{ Scenario = $sc.Name; Impl = "recursive_mutex"; Raw = $baselineRow.Raw; MedianOpsPerSecond = $baselineRow.MedianOpsPerSecond; SpreadPct = $baselineRow.SpreadPct })
-		$rows.Add([pscustomobject]@{ Scenario = $sc.Name; Impl = $sc.ImplRsm; Raw = $impl.Raw; MedianOpsPerSecond = $impl.MedianOpsPerSecond; SpreadPct = $impl.SpreadPct })
+		$rows.Add([pscustomobject]@{
+			Scenario = $sc.Name
+			Impl = "recursive_mutex"
+			Raw = $baselineRow.Raw
+			MedianOpsPerSecond = $baselineRow.MedianOpsPerSecond
+			MinOpsPerSecond = $baselineRow.MinOpsPerSecond
+			MaxOpsPerSecond = $baselineRow.MaxOpsPerSecond
+			SpreadPct = $baselineRow.SpreadPct
+		})
+		$rows.Add([pscustomobject]@{
+			Scenario = $sc.Name
+			Impl = $sc.ImplRsm
+			Raw = $impl.Raw
+			MedianOpsPerSecond = $impl.MedianOpsPerSecond
+			MinOpsPerSecond = $impl.MinOpsPerSecond
+			MaxOpsPerSecond = $impl.MaxOpsPerSecond
+			SpreadPct = $impl.SpreadPct
+		})
 	}
 
 	$backendText = if ($backendLine -match "^backend\|([^|]+)\|(\d+)$") {
@@ -250,6 +278,26 @@ function Invoke-Toolchain([string]$kind) {
 	}
 	else { $backendLine }
 	Write-Report $(if ($kind -eq "msvc") { "MSVC" } else { "MinGW-GCC" }) $label $rows $outFile $backendText
+
+	if (-not [string]::IsNullOrWhiteSpace($Json)) {
+		# BMF is keyed by benchmark name; the toolchain is part of the name because
+		# both matrix cells share one Bencher project and one testbed fingerprint.
+		$tool = if ($kind -eq "msvc") { "msvc" } else { "mingw" }
+		$bmf = [ordered]@{}
+		foreach ($row in $rows) {
+			$key = "{0} / {1} / {2}" -f $tool, $row.Scenario, $row.Impl
+			$bmf[$key] = [ordered]@{
+				throughput = [ordered]@{
+					value = [math]::Round($row.MedianOpsPerSecond, 3)
+					lower_value = [math]::Round($row.MinOpsPerSecond, 3)
+					upper_value = [math]::Round($row.MaxOpsPerSecond, 3)
+				}
+			}
+		}
+		$text = $bmf | ConvertTo-Json -Depth 8
+		[System.IO.File]::WriteAllText($Json, $text, (New-Object System.Text.UTF8Encoding($false)))
+		if (-not $Quiet) { Write-Host "BMF written to $Json" }
+	}
 
 	if (-not [string]::IsNullOrWhiteSpace($Baseline)) {
 		$old = Read-BaselineSpeedups $Baseline
