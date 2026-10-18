@@ -27,6 +27,22 @@ void read() {
 }
 ```
 
+## Contents
+
+- [Features](#features)
+- [Sharded arrays](#sharded-arrays-use-the-cache-aligned-variant)
+- [Compile-time knobs](#compile-time-knobs)
+- [Benchmarks vs std::recursive_mutex](#benchmarks-vs-stdrecursive_mutex)
+- [Requirements](#requirements)
+- [Quick start](#quick-start)
+- [Semantics](#semantics-short)
+- [Writer-starvation observability](#writer-starvation-observability-r2)
+- [Limitations](#limitations)
+- [Project layout](#project-layout)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
+
 ## Features
 
 - Works with `std::unique_lock` and `std::shared_lock` (C++17 *SharedMutex*

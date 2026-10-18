@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:2df247d85054 -->
+<!-- translated-from: README.md sha256:1e739ff575ba -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -27,6 +27,22 @@ void read() {
   // ...
 }
 ```
+
+## 目录
+
+- [特性](#特性)
+- [分片数组](#分片数组用按-cache-line-对齐的变体)
+- [编译期开关](#编译期开关)
+- [与 std::recursive_mutex 的跑分对比](#与-stdrecursive_mutex-的跑分对比)
+- [环境要求](#环境要求)
+- [快速开始](#快速开始)
+- [语义](#语义简表)
+- [写者饥饿可观测性](#写者饥饿可观测性r2)
+- [限制](#限制)
+- [仓库结构](#仓库结构)
+- [参与贡献](#参与贡献)
+- [安全](#安全)
+- [许可](#许可)
 
 ## 特性
 
