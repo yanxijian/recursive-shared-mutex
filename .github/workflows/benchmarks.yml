@@ -145,7 +145,8 @@ jobs:
                            "-Rounds", "${{ inputs.compare_rounds || '10' }}",
                            "-Compare", "-OutDir", "benchmarks/results",
                            "-Json", "$env:RUNNER_TEMP\bmf-${{ matrix.name }}.json")
-          $baseline = "benchmarks/results/compare-ci-${{ matrix.name }}.md"
+          $suffix = if ("${{ matrix.name }}" -eq "msvc") { "msvc" } else { "mingw-gcc" }
+          $baseline = "benchmarks/results/compare-ci-$suffix.md"
           if (Test-Path $baseline) {
             $compareArgs += @("-Baseline", $baseline, "-RegressionPct", "${{ inputs.regression_pct || '0' }}")
           } else {
@@ -160,7 +161,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: compare-${{ matrix.name }}
-          path: benchmarks/results/compare-ci-${{ matrix.name }}.md
+          path: benchmarks/results/compare-ci-${{ matrix.name == 'msvc' && 'msvc' || 'mingw-gcc' }}.md
           retention-days: 30
 
       - name: Send to Bencher (optional tracking)
