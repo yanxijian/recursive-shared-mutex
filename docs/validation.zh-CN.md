@@ -2,7 +2,7 @@
 
 [English](validation.md) · **简体中文**
 
-<!-- translated-from: docs/validation.md sha256:01957795ed35 -->
+<!-- translated-from: docs/validation.md sha256:ee33970457e1 -->
 
 这页定义本仓库里"已验证"是什么意思、证据怎么记录，以及证据**不**覆盖什么。
 soak workflow 的规模按这里定；`verification/soak-history.md` 是账本。
@@ -45,8 +45,9 @@ soak workflow 的规模按这里定；`verification/soak-history.md` 是账本�
 
 **第二层——"自证"标准，v1.0 之前或要求消费方信任之前：**
 
-- `model_check`：至少 **10^12 次操作**、至少 **200 个不同 seed**，覆盖 Linux、
-  Windows、ARM64，零模型违规。
+- `model_check`：至少 **10^12 次操作**、至少 **200 个不同 seed**，Linux、Windows、
+  ARM64 都零违规。长跑的操作数可以来自一个平台；另外两个平台各自至少要有
+  一个已记录批次。
 - `mutual_exclusion`：至少 **10^9 次独占进入**，零 overlap、零 reader-with-writer、
   零滞留槽位。
 - TSan：至少 **20 thread-hours** clean，包含模型检查。

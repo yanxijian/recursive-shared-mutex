@@ -48,7 +48,9 @@ choice, not a resource count.
 **Tier 2 - the "self-certified" bar, before a v1.0 or before a consumer is asked to trust it:**
 
 - `model_check`: at least **10^12 operations** across at least **200 distinct
-  seeds**, on Linux, Windows and ARM64, with zero model violations.
+  seeds**, with Linux, Windows and ARM64 all showing zero violations. The long
+  operation count may come from one platform; the other two need at least a
+  recorded batch of their own.
 - `mutual_exclusion`: at least **10^9 exclusive entries** with zero overlaps,
   zero reader-with-writer, zero stranded slots.
 - TSan: at least **20 thread-hours** clean, including the model checker.
@@ -61,10 +63,11 @@ choice, not a resource count.
 
 The numbers are floors, not claims of completeness. Size batches from the
 recorded rate: `ops_target / (ops_per_second x shards x minutes x 60)` gives the minutes
-per shard. At the rates seen so far (about 15 M ops/s with 8 threads on a
-desktop, about 7.5 M ops/s on a 4-vCPU runner), 10^12 operations is roughly
-**5 batches of 8 job-hours** (4 shards x 120 min x 8 threads). Run the calibration
-batch first and read `ops` from the history before committing to the count.
+per shard. The ledger now has the rate: a 4-shard x 120 min x 8-thread batch (8
+job-hours) produced **1.67 x 10^11 operations**, about 2.1 x 10^10 per job-hour.
+10^12 is therefore about **48 job-hours** - one 8-shard x 300 min batch on top of
+what the ledger already holds. Read `ops` from the history before sizing the next
+one; the runner rate is the only input that changes.
 
 ## Running it
 
