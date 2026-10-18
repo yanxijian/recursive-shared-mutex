@@ -57,6 +57,15 @@ on:
         description: Fail when a speedup drops by more than this percentage (0 = do not gate)
         type: string
         default: "0"
+      mode:
+        description: "measure = normal per-implementation run; compare = same-process ABBA diagnostic"
+        type: choice
+        options: [measure, compare]
+        default: measure
+      compare_rounds:
+        description: "ABBA rounds when mode=compare"
+        type: string
+        default: "10"
   pull_request:
     # Only the library can regress the numbers. The harness, the results files and
     # this workflow itself are not worth 2 minutes of gate on every push.
@@ -112,7 +121,7 @@ jobs:
           install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja
 
       - name: Measure
-        if: inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.mode != 'compare'
         shell: pwsh
         run: |
           if ("${{ matrix.toolchain }}" -eq "mingw") {
@@ -123,12 +132,32 @@ jobs:
             -RegressionPct ${{ inputs.regression_pct || '0' }} `
             -Json "$env:RUNNER_TEMP\bmf-${{ matrix.name }}.json"
 
+      - name: Compare (same-process ABBA)
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.mode == 'compare'
+        shell: pwsh
+        run: |
+          if ("${{ matrix.toolchain }}" -eq "mingw") {
+            $env:PATH = "C:\msys64\ucrt64\bin;$env:PATH"
+          }
+          pwsh -NoProfile -File benchmarks/run_bench.ps1 -Toolchain ${{ matrix.toolchain }} `
+            -Seconds ${{ inputs.seconds || '3' }} -Rounds ${{ inputs.compare_rounds || '10' }} `
+            -Compare -OutDir "$env:RUNNER_TEMP\compare"
+          Get-Content "$env:RUNNER_TEMP\compare\compare-*.md" | Out-File -Append -Encoding utf8 $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload the comparison
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.mode == 'compare'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compare-${{ matrix.name }}
+          path: ${{ runner.temp }}/compare/compare-*.md
+          retention-days: 30
+
       - name: Send to Bencher (optional tracking)
         # Off unless BENCHER_PROJECT and BENCHER_API_KEY are configured. Without
         # them the same BMF file is validated with --dry-run, so forks and fresh
         # clones still exercise the format. This is tracking only: the gate is
         # still the -RegressionPct comparison above, and no threshold is set here.
-        if: inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.mode != 'compare'
         shell: pwsh
         env:
           BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
@@ -172,7 +201,7 @@ jobs:
         # pushed either way, so a maintainer can open it with one click - see the
         # fallback step below.
         continue-on-error: true
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'pull-request'
+        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.update_mode == 'pull-request' && inputs.mode != 'compare'
         uses: peter-evans/create-pull-request@v6
         with:
           branch: bench/refresh-${{ matrix.name }}
@@ -203,6 +232,7 @@ jobs:
         if: |
           github.event_name != 'pull_request' &&
           (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) &&
+          inputs.mode != 'compare' &&
           inputs.update_mode == 'auto-merge'
         shell: pwsh
         env:
