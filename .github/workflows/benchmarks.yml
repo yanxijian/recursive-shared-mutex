@@ -146,6 +146,10 @@ jobs:
                               "--branch", "${{ github.ref_name }}", "--ci-on-the-fly")
             Write-Host "Sending BMF to Bencher project $env:BENCHER_PROJECT"
           } else {
+            # The CLI reads BENCHER_PROJECT/BENCHER_API_TOKEN from the environment
+            # too, and an empty value is rejected before --dry-run is honoured.
+            Remove-Item Env:BENCHER_PROJECT -ErrorAction SilentlyContinue
+            Remove-Item Env:BENCHER_API_TOKEN -ErrorAction SilentlyContinue
             $bencherArgs += "--dry-run"
             Write-Host "::notice::BENCHER_PROJECT / BENCHER_API_TOKEN not configured; validating BMF with --dry-run"
           }
