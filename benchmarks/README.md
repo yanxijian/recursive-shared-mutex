@@ -86,6 +86,21 @@ times the failure rate of RSM while RSM's numbers stay flat, which is what moves
 the speedup. A high kernel share means the run spent its time in the scheduler,
 not in the lock.
 
+## Interleaved comparison (`-Compare`)
+
+`run_bench.ps1 -Compare -Rounds N` runs each scenario in **one process**: the
+baseline and the library alternate (ABBA), every round records `RSM ops /
+baseline ops`, and the report uses the median of those ratios instead of the
+ratio of two independently measured medians. It writes
+`compare-<toolchain>.md` (git-ignored) with the per-scenario median ratio, the
+IQR, and the number of "healthy" rounds - rounds where the baseline came within
+80% of its best round.
+
+The baseline is bimodal under a `try_lock` + `yield` spin: when it convoys, the
+ratio inflates. The healthy count says how much of the number is baseline
+behaviour rather than the library. Diagnostic for now: the gate and the Bencher
+upload still use the normal per-implementation runs.
+
 ## Scenarios
 
 | ID | Description |

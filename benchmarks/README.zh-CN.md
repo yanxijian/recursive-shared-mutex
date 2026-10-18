@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:29b9f63a581b -->
+<!-- translated-from: README.md sha256:e9354266f06c -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -89,6 +89,17 @@ fork 或新克隆无需账号即可验证格式。
 这些是诊断量，不是 gate：在 S3 上，`recursive_mutex` 基线的失败次数可以是 RSM 的十倍，
 而 RSM 自己的数字保持平稳——真正让 speedup 摆动的是前者。kernel 占比高说明时间花在
 调度器里，而不是锁上。
+
+## 交替对比（`-Compare`）
+
+`run_bench.ps1 -Compare -Rounds N` 让每个场景在**同一个进程**里跑：基线与库交替（ABBA），
+每一轮记录 `RSM ops / 基线 ops`，报告取这些比值的中位数，而不是两个独立中位数之比。
+它写出 `compare-<toolchain>.md`（已被 git 忽略），含每个场景的中位比值、IQR，以及
+"健康轮次"数——健康指基线达到它本轮最好成绩的 80% 以内。
+
+在 `try_lock` + `yield` 自旋下基线是双峰的：它一旦 convoy，比值就被抬高。健康轮次数
+说明了这个数字里有多少是基线行为、多少是库本身。目前仅作诊断：gate 与 Bencher 上报
+仍走普通的逐实现运行。
 
 ## 场景
 

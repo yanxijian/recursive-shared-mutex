@@ -12,11 +12,13 @@
 using RecursiveSharedMutex = rsm::RecursiveSharedMutex;
 using CacheAlignedRecursiveSharedMutex = rsm::CacheAlignedRecursiveSharedMutex;
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <random>
@@ -88,6 +90,8 @@ namespace
 		double writeFraction = 0.2;
 		double seconds = 3.0;
 		bool exclusiveReads = false;
+		bool compare = false;
+		int rounds = 5;
 	};
 
 	std::string getOpt(int argc, char** argv, const char* key, const std::string& def)
@@ -126,6 +130,8 @@ namespace
 		a.writeFraction = std::atof(getOpt(argc, argv, "--write-fraction", "0.2").c_str());
 		a.seconds = std::atof(getOpt(argc, argv, "--seconds", "3").c_str());
 		a.exclusiveReads = hasFlag(argc, argv, "--exclusive-reads");
+		a.compare = hasFlag(argc, argv, "--compare");
+		a.rounds = std::atoi(getOpt(argc, argv, "--rounds", "5").c_str());
 		return a;
 	}
 
@@ -472,35 +478,127 @@ namespace
 		writeOps = writes.load();
 	}
 
-	template <class Mutex, bool SharedReads> void dispatch(const Args& a, const std::string& implName)
+	struct Attempt
 	{
-		std::vector<std::uint32_t> data = makeDataset();
 		std::uint64_t readOps = 0;
 		std::uint64_t writeOps = 0;
+		std::uint64_t yields = 0;
+		std::uint64_t failed = 0;
+		std::int64_t userMs = 0;
+		std::int64_t kernelMs = 0;
 		std::string rwLabel;
+	};
 
+	template <class Mutex, bool SharedReads> Attempt runOnce(const Args& a, std::vector<std::uint32_t>& data)
+	{
+		Attempt r;
 		if (a.mode == "rw")
 		{
 			Mutex mtx;
-			runRw<Mutex, SharedReads>(mtx, data, a.readers, a.writers, a.seconds, readOps, writeOps);
-			rwLabel = std::to_string(a.readers) + "/" + std::to_string(a.writers);
+			runRw<Mutex, SharedReads>(mtx, data, a.readers, a.writers, a.seconds, r.readOps, r.writeOps);
+			r.rwLabel = std::to_string(a.readers) + "/" + std::to_string(a.writers);
 		}
 		else if (a.mode == "mixed")
 		{
 			Mutex mtx;
-			runMixed<Mutex, SharedReads>(mtx, data, a.workers, a.writeFraction, a.seconds, readOps, writeOps);
-			rwLabel = "N=" + std::to_string(a.workers);
+			runMixed<Mutex, SharedReads>(mtx, data, a.workers, a.writeFraction, a.seconds, r.readOps, r.writeOps);
+			r.rwLabel = "N=" + std::to_string(a.workers);
 		}
 		else
 		{
 			std::vector<Mutex> mtxs(8);
-			runSharded<Mutex, SharedReads>(mtxs, data, a.workers, a.writeFraction, a.seconds, readOps, writeOps);
-			rwLabel = "N=" + std::to_string(a.workers);
+			runSharded<Mutex, SharedReads>(mtxs, data, a.workers, a.writeFraction, a.seconds, r.readOps, r.writeOps);
+			r.rwLabel = "N=" + std::to_string(a.workers);
 		}
+		r.yields = g_yields.load(std::memory_order_relaxed);
+		r.failed = g_failed.load(std::memory_order_relaxed);
+		r.userMs = g_userMs;
+		r.kernelMs = g_kernelMs;
+		return r;
+	}
 
-		std::cout << a.scenario << "|" << implName << "|" << rwLabel << "|" << readOps << "|" << writeOps << "|" << a.seconds << "|"
-		          << g_yields.load(std::memory_order_relaxed) << "|" << g_failed.load(std::memory_order_relaxed) << "|" << g_userMs << "|"
-		          << g_kernelMs << "\n";
+	template <class Mutex, bool SharedReads> void dispatch(const Args& a, const std::string& implName)
+	{
+		std::vector<std::uint32_t> data = makeDataset();
+		const Attempt r = runOnce<Mutex, SharedReads>(a, data);
+		std::cout << a.scenario << "|" << implName << "|" << r.rwLabel << "|" << r.readOps << "|" << r.writeOps << "|" << a.seconds << "|"
+		          << r.yields << "|" << r.failed << "|" << r.userMs << "|" << r.kernelMs << "\n";
+	}
+
+	double medianOf(std::vector<double> v)
+	{
+		if (v.empty())
+		{
+			return 0.0;
+		}
+		std::sort(v.begin(), v.end());
+		const std::size_t n = v.size();
+		return n % 2 == 1 ? v[n / 2] : (v[n / 2 - 1] + v[n / 2]) / 2.0;
+	}
+
+	double quantileOf(std::vector<double> v, double q)
+	{
+		if (v.empty())
+		{
+			return 0.0;
+		}
+		std::sort(v.begin(), v.end());
+		const double pos = q * static_cast<double>(v.size() - 1);
+		const std::size_t lo = static_cast<std::size_t>(pos);
+		const std::size_t hi = std::min(lo + 1, v.size() - 1);
+		return v[lo] + (v[hi] - v[lo]) * (pos - static_cast<double>(lo));
+	}
+
+	template <class A, bool SA, class B, bool SB> void compareImpl(const Args& a)
+	{
+		std::vector<std::uint32_t> data = makeDataset();
+		std::vector<double> ratios;
+		std::vector<double> baseOps;
+		for (int round = 0; round < a.rounds; ++round)
+		{
+			const bool aFirst = (round % 2 == 0);
+			Attempt x;
+			Attempt y;
+			if (aFirst)
+			{
+				x = runOnce<A, SA>(a, data);
+				y = runOnce<B, SB>(a, data);
+			}
+			else
+			{
+				y = runOnce<B, SB>(a, data);
+				x = runOnce<A, SA>(a, data);
+			}
+			const double opsA = static_cast<double>(x.readOps + x.writeOps) / a.seconds;
+			const double opsB = static_cast<double>(y.readOps + y.writeOps) / a.seconds;
+			const double ratio = opsA > 0.0 ? opsB / opsA : 0.0;
+			ratios.push_back(ratio);
+			baseOps.push_back(opsA);
+			std::cout << "COMPARE|" << a.scenario << "|" << round << "|" << (aFirst ? "AB" : "BA") << "|" << std::fixed
+			          << std::setprecision(1) << opsA << "|" << opsB << "|" << std::setprecision(3) << ratio << "|" << x.failed << "|"
+			          << x.yields << "|" << y.failed << "|" << y.yields << "|" << x.kernelMs << "|" << y.kernelMs << "\n";
+		}
+		// The baseline is bimodal: a "healthy" round is one where it got close to
+		// its own best throughput in this run. Slow rounds are scheduler convoys,
+		// not a property of recursive_mutex, and comparing RSM against them makes
+		// the speedup look better than it is.
+		const double baseBest = *std::max_element(baseOps.begin(), baseOps.end());
+		const double healthyFloor = baseBest * 0.8;
+		std::vector<double> healthyRatios;
+		for (std::size_t i = 0; i < ratios.size(); ++i)
+		{
+			if (baseOps[i] >= healthyFloor)
+			{
+				healthyRatios.push_back(ratios[i]);
+			}
+		}
+		const double median = medianOf(ratios);
+		const double q25 = quantileOf(ratios, 0.25);
+		const double q75 = quantileOf(ratios, 0.75);
+		const double iqrPct = median > 0.0 ? (q75 - q25) / median * 100.0 : 0.0;
+		const double healthyMedian = healthyRatios.empty() ? median : medianOf(healthyRatios);
+		std::cout << "SUMMARY|" << a.scenario << "|" << a.rounds << "|" << std::fixed << std::setprecision(3) << median << "|" << iqrPct
+		          << "|" << healthyRatios.size() << "|" << healthyMedian << "\n";
 	}
 
 } // namespace
@@ -523,6 +621,22 @@ int main(int argc, char** argv)
 	}
 
 	const Args a = parseArgs(argc, argv);
+	if (a.compare)
+	{
+		if (a.impl == "rsm_exclusive" || (a.impl == "rsm" && a.exclusiveReads))
+		{
+			compareImpl<std::recursive_mutex, false, RecursiveSharedMutex, false>(a);
+		}
+		else if (a.impl == "rsm_padded")
+		{
+			compareImpl<std::recursive_mutex, false, CacheAlignedRecursiveSharedMutex, true>(a);
+		}
+		else
+		{
+			compareImpl<std::recursive_mutex, false, RecursiveSharedMutex, true>(a);
+		}
+		return 0;
+	}
 	if (a.impl == "recursive_mutex")
 	{
 		dispatch<std::recursive_mutex, false>(a, "recursive_mutex");

@@ -57,3 +57,5 @@ coverage/
 vcpkg_installed/
 conanlock.txt
 graph_info.json
+# -Compare reports are diagnostic and not part of the checked-in results
+benchmarks/results/compare-*.md
