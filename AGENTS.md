@@ -205,7 +205,7 @@ code. This applies to the translated documents; English text may wrap normally.
 
 A Simplified Chinese document links to the `.zh-CN.md` edition of another
 translated document, not the English one. The only cross-language link is the
-`[English](...)` switcher at the top. Fragments must use the translated heading
+English switcher at the top (the `[English]` link). Fragments must use the translated heading
 anchor. `scripts/check_repo_rules.py` reports `lang-link` for a relative link to
 an English document whose translation exists.
 
