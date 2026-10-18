@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The batch workflow gained a TSan switch (`--mutexes 1`, Unix only) and a runner/label pair for Windows and ARM64, so the same sharded ledger can accumulate TSan thread-hours and per-platform evidence instead of Linux-only ops.
 - `docs/validation.md` (and its Chinese companion) defines the validation contract: what runs, the two ledgers (coverage reported by the test, cost reported by GitHub), the Tier 1/2 exit criteria, batch sizing from the recorded rate, the known TSan lock-order false positive, and what the evidence does not cover.
 - `soak-batch.yml` runs multi-hour `model_check` batches on demand, sharded across runners, summing ops and exclusive entries and optionally committing one row to `verification/soak-history.md` - only that file, and only when `record=true`.
 - The nightly soak derives every seed from `GITHUB_RUN_ID` instead of replaying seeds 1-4 and 0x5EED every night: a fixed seed is coverage theatre, not a soak.

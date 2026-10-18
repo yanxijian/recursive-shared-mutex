@@ -79,6 +79,13 @@ batch first and read `ops` from the history before committing to the count.
   `verification/soak-history.md`; the workflow commits only that file. The commit
   is pushed with `GITHUB_TOKEN`, so it does not start the rules job - the guard
   that refuses any other path is what keeps it narrow.
+- **TSan batch** - `tsan=true`: builds with `-fsanitize=thread` and runs
+  `--mutexes 1` (see False positives). Unix only. A 3-shard x 120 min x 4-thread
+  batch contributes 24 thread-hours.
+- **Other platforms** - `runs_on=windows-latest, label=windows` or
+  `runs_on=ubuntu-24.04-arm, label=arm64`; the shard builds with MSVC or g++
+  accordingly. Short batches there are enough to show zero violations on the
+  platform; the long runs stay on Linux, where a runner-hour buys the most ops.
 
 The 6-hour job limit is the constraint: keep `minutes` at 300 or below.
 

@@ -6,8 +6,13 @@
 # (optionally) appends one row to verification/soak-history.md - only that file,
 # and only when the batch is meant to be recorded.
 #
-# Size it from the ledger: ops_target / (ops_per_second * shards * 3600) gives the
-# minutes per shard. The defaults are a calibration batch, not a certification run.
+# Size it from the ledger: ops_target / (ops_per_second * shards * minutes * 60)
+# gives the minutes per shard. The defaults are a calibration batch, not a
+# certification run.
+#
+# TSan: `tsan=true` builds with -fsanitize=thread and runs one mutex per thread
+# (phase 1's single-threaded multi-mutex nesting is a lock-order false positive
+# under TSan; see docs/validation.md). TSan is Unix-only.
 
 name: soak batch
 
@@ -29,6 +34,16 @@ on:
       seed_base:
         description: "First seed; shard s starts at seed_base + s*seeds_per_shard"
         default: "1000"
+      runs_on:
+        description: "Runner label: ubuntu-latest, windows-latest, ubuntu-24.04-arm"
+        default: "ubuntu-latest"
+      label:
+        description: "Platform label written to the history row"
+        default: "linux"
+      tsan:
+        description: "Build with ThreadSanitizer (Unix only; runs --mutexes 1)"
+        type: boolean
+        default: false
       record:
         description: "Append the batch to verification/soak-history.md and commit it"
         type: boolean
@@ -37,8 +52,10 @@ on:
 permissions:
   contents: write
 
+# One group per run: several batches may be in flight, and the record step
+# fast-forwards and retries if two of them reach the history at the same time.
 concurrency:
-  group: soak-batch
+  group: soak-batch-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -51,17 +68,22 @@ jobs:
       - id: list
         env:
           SHARDS: ${{ inputs.shards }}
+          RUNS_ON: ${{ inputs.runs_on }}
+          TSAN: ${{ inputs.tsan }}
         run: |
           if [ "$SHARDS" -lt 1 ] || [ "$SHARDS" -gt 8 ]; then
             echo "shards must be between 1 and 8"
             exit 2
           fi
+          case "$RUNS_ON" in
+            windows*) [ "$TSAN" = "true" ] && { echo "TSan is Unix-only"; exit 2; } ;;
+          esac
           python3 -c 'import json, os; print("shards=" + json.dumps(list(range(int(os.environ["SHARDS"])))))' >> "$GITHUB_OUTPUT"
 
   shard:
     name: shard ${{ matrix.shard }}
     needs: prepare
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -70,16 +92,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build
-        run: g++ -O2 -std=c++17 -pthread -Iinclude tests/model_check.cpp -o model_check
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Build (Unix)
+        if: runner.os != 'Windows'
+        env:
+          TSAN: ${{ inputs.tsan }}
+        run: |
+          if [ "$TSAN" = "true" ]; then
+            g++ -O1 -g -std=c++17 -pthread -fsanitize=thread -Iinclude tests/model_check.cpp -o model_check
+          else
+            g++ -O2 -std=c++17 -pthread -Iinclude tests/model_check.cpp -o model_check
+          fi
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: cl /O2 /std:c++17 /EHsc /Iinclude tests/model_check.cpp /Fe:model_check.exe
 
       - name: Run the shard
+        shell: bash
         env:
           SHARD: ${{ matrix.shard }}
           MINUTES: ${{ inputs.minutes }}
           SEEDS: ${{ inputs.seeds_per_shard }}
           THREADS: ${{ inputs.threads }}
           SEED_BASE: ${{ inputs.seed_base }}
+          TSAN: ${{ inputs.tsan }}
+          TSAN_OPTIONS: "halt_on_error=1 second_deadlock_stack=1"
         run: |
           set -o pipefail
           if [ "$MINUTES" -lt 1 ] || [ "$SEEDS" -lt 1 ] || [ "$THREADS" -lt 1 ]; then
@@ -91,12 +132,20 @@ jobs:
             echo "per-seed duration would be ${per}s; raise minutes or lower seeds_per_shard"
             exit 2
           fi
+          mutexes=8
+          bin=./model_check
+          if [ "$TSAN" = "true" ]; then
+            mutexes=1
+          fi
+          case "$RUNNER_OS" in
+            Windows) bin=./model_check.exe ;;
+          esac
           first=$(( SEED_BASE + SHARD * SEEDS ))
-          echo "shard=$SHARD per_seed=${per}s first_seed=$first" | tee out.txt
+          echo "shard=$SHARD per_seed=${per}s first_seed=$first mutexes=$mutexes" | tee out.txt
           for i in $(seq 0 $(( SEEDS - 1 ))); do
             seed=$(( first + i ))
             echo "=== seed $seed ===" | tee -a out.txt
-            ./model_check --seed "$seed" --ops 2000000 --threads "$THREADS" --seconds "$per" 2>&1 | tee -a out.txt
+            "$bin" --seed "$seed" --ops 2000000 --threads "$THREADS" --mutexes "$mutexes" --seconds "$per" 2>&1 | tee -a out.txt
           done
 
       - name: Upload the shard log
@@ -129,10 +178,11 @@ jobs:
           SEEDS: ${{ inputs.seeds_per_shard }}
           THREADS: ${{ inputs.threads }}
           SEED_BASE: ${{ inputs.seed_base }}
+          LABEL: ${{ inputs.label }}
           SHARD_RESULT: ${{ needs.shard.result }}
         run: |
           python3 - <<'PY'
-          import glob, os, re, sys
+          import glob, os, re
 
           shards = int(os.environ["SHARDS"])
           seeds = int(os.environ["SEEDS"])
@@ -140,6 +190,7 @@ jobs:
           last = first + shards * seeds - 1
           threads = os.environ["THREADS"]
           minutes = os.environ["MINUTES"]
+          label = os.environ["LABEL"]
 
           total_ops = total_entries = 0
           runs = 0
@@ -165,13 +216,13 @@ jobs:
               problems.append(f"shard job result: {os.environ['SHARD_RESULT']}")
 
           verdict = "green" if not problems else "red"
-          print(f"shards={shards} minutes={minutes} threads={threads} seeds={first}-{last}")
+          print(f"shards={shards} minutes={minutes} threads={threads} label={label} seeds={first}-{last}")
           print(f"runs={runs} ops={total_ops} entries={total_entries} verdict={verdict}")
           for p in problems:
               print("  " + p)
 
           with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as f:
-              f.write(f"## soak batch {os.environ['GITHUB_RUN_ID']}\n\n")
+              f.write(f"## soak batch {os.environ['GITHUB_RUN_ID']} ({label})\n\n")
               f.write(f"- shards: {shards}, minutes/shard: {minutes}, threads: {threads}, seeds/shard: {seeds}\n")
               f.write(f"- seeds: {first}-{last}\n")
               f.write(f"- ops: {total_ops}, exclusive entries: {total_entries}\n")
@@ -189,6 +240,7 @@ jobs:
           SHARDS: ${{ inputs.shards }}
           MINUTES: ${{ inputs.minutes }}
           THREADS: ${{ inputs.threads }}
+          LABEL: ${{ inputs.label }}
         run: |
           # actions/checkout uses the dispatch SHA, not the current main, so a
           # batch that runs for hours would push a commit based on a stale tip.
@@ -200,8 +252,9 @@ jobs:
           shards = os.environ["SHARDS"]
           minutes = os.environ["MINUTES"]
           threads = os.environ["THREADS"]
+          label = os.environ["LABEL"]
           row = (
-              f"| {datetime.date.today().isoformat()} | {os.environ['GITHUB_RUN_ID']} | linux | "
+              f"| {datetime.date.today().isoformat()} | {os.environ['GITHUB_RUN_ID']} | {label} | "
               f"{shards} | {minutes} | {threads} | {first}-{last} | {ops} | {entries} | {verdict} |\n"
           )
           path = pathlib.Path("verification/soak-history.md")

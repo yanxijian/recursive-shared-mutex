@@ -2,7 +2,7 @@
 
 [English](validation.md) · **简体中文**
 
-<!-- translated-from: docs/validation.md sha256:7e1647c89764 -->
+<!-- translated-from: docs/validation.md sha256:01957795ed35 -->
 
 这页定义本仓库里"已验证"是什么意思、证据怎么记录，以及证据**不**覆盖什么。
 soak workflow 的规模按这里定；`verification/soak-history.md` 是账本。
@@ -73,6 +73,12 @@ soak workflow 的规模按这里定；`verification/soak-history.md` 是账本�
   8 job-hours。`record=true`（默认）会往 `verification/soak-history.md` 追加一行；
   workflow 只提交这个文件。提交用 `GITHUB_TOKEN` 推送，因此不会触发规则检查——
   真正让它保持狭窄的是"拒绝该文件之外的任何路径"这个护栏。
+- **TSan 批次**——`tsan=true`：用 `-fsanitize=thread` 构建并跑 `--mutexes 1`
+  （见"假阳性"）。仅 Unix。3 分片 × 120 分钟 × 4 线程贡献 24 thread-hours。
+- **其它平台**——`runs_on=windows-latest, label=windows` 或
+  `runs_on=ubuntu-24.04-arm, label=arm64`；分片相应改用 MSVC 或 g++ 构建。
+  这些平台上跑短批次足以证明零违规；长跑留在 Linux，因为同样一个 runner-hour
+  能买到最多的 ops。
 
 6 小时 job 上限是约束：`minutes` 保持在 300 或以下。
 
