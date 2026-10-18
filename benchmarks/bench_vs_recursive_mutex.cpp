@@ -25,10 +25,56 @@ using CacheAlignedRecursiveSharedMutex = rsm::CacheAlignedRecursiveSharedMutex;
 #include <thread>
 #include <vector>
 
+#if defined(_WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <sys/resource.h>
+#endif
+
 namespace
 {
 
 	using Clock = std::chrono::steady_clock;
+
+	// L0 telemetry: how much of the measured time was spent failing to acquire
+	// and yielding, and how much CPU the process burned in user vs kernel mode.
+	// A contention storm shows up as a high failed-try count and kernel share.
+	struct CpuTimes
+	{
+		double userMs = 0.0;
+		double kernelMs = 0.0;
+	};
+
+	CpuTimes process_cpu_times()
+	{
+#if defined(_WIN32)
+		FILETIME creation{}, exitTime{}, kernel{}, user{};
+		if (!GetProcessTimes(GetCurrentProcess(), &creation, &exitTime, &kernel, &user))
+		{
+			return {};
+		}
+		auto to_ms = [](const FILETIME& ft) {
+			ULARGE_INTEGER v;
+			v.LowPart = ft.dwLowDateTime;
+			v.HighPart = ft.dwHighDateTime;
+			return static_cast<double>(v.QuadPart) / 10000.0;
+		};
+		return {to_ms(user), to_ms(kernel)};
+#else
+		rusage usage{};
+		getrusage(RUSAGE_SELF, &usage);
+		auto to_ms = [](const timeval& tv) { return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0; };
+		return {to_ms(usage.ru_utime), to_ms(usage.ru_stime)};
+#endif
+	}
+
+	std::atomic<std::uint64_t> g_yields{0};
+	std::atomic<std::uint64_t> g_failed{0};
+	std::int64_t g_userMs = 0;
+	std::int64_t g_kernelMs = 0;
 	constexpr std::size_t kDataSize = 1u << 20;
 
 	struct Args
@@ -144,6 +190,8 @@ namespace
 		std::atomic<bool> go{false};
 		std::atomic<bool> stop{false};
 		std::vector<std::thread> threads;
+		g_yields.store(0, std::memory_order_relaxed);
+		g_failed.store(0, std::memory_order_relaxed);
 
 		for (int i = 0; i < readers; ++i)
 		{
@@ -168,6 +216,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -181,6 +231,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -218,6 +270,7 @@ namespace
 			});
 		}
 
+		const CpuTimes cpu0 = process_cpu_times();
 		go.store(true, std::memory_order_release);
 		std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
 		stop.store(true, std::memory_order_relaxed);
@@ -225,6 +278,9 @@ namespace
 		{
 			t.join();
 		}
+		const CpuTimes cpu1 = process_cpu_times();
+		g_userMs = static_cast<std::int64_t>(cpu1.userMs - cpu0.userMs + 0.5);
+		g_kernelMs = static_cast<std::int64_t>(cpu1.kernelMs - cpu0.kernelMs + 0.5);
 		readOps = reads.load();
 		writeOps = writes.load();
 	}
@@ -238,6 +294,8 @@ namespace
 		std::atomic<bool> go{false};
 		std::atomic<bool> stop{false};
 		std::vector<std::thread> threads;
+		g_yields.store(0, std::memory_order_relaxed);
+		g_failed.store(0, std::memory_order_relaxed);
 
 		for (int i = 0; i < workers; ++i)
 		{
@@ -263,6 +321,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -276,6 +336,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -289,6 +351,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -298,6 +362,7 @@ namespace
 			});
 		}
 
+		const CpuTimes cpu0 = process_cpu_times();
 		go.store(true, std::memory_order_release);
 		std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
 		stop.store(true, std::memory_order_relaxed);
@@ -305,6 +370,9 @@ namespace
 		{
 			t.join();
 		}
+		const CpuTimes cpu1 = process_cpu_times();
+		g_userMs = static_cast<std::int64_t>(cpu1.userMs - cpu0.userMs + 0.5);
+		g_kernelMs = static_cast<std::int64_t>(cpu1.kernelMs - cpu0.kernelMs + 0.5);
 		readOps = reads.load();
 		writeOps = writes.load();
 	}
@@ -318,6 +386,8 @@ namespace
 		std::atomic<bool> go{false};
 		std::atomic<bool> stop{false};
 		std::vector<std::thread> threads;
+		g_yields.store(0, std::memory_order_relaxed);
+		g_failed.store(0, std::memory_order_relaxed);
 		const int shards = static_cast<int>(mtxs.size());
 
 		for (int i = 0; i < workers; ++i)
@@ -346,6 +416,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -359,6 +431,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -372,6 +446,8 @@ namespace
 						}
 						else
 						{
+							g_failed.fetch_add(1, std::memory_order_relaxed);
+							g_yields.fetch_add(1, std::memory_order_relaxed);
 							std::this_thread::yield();
 						}
 					}
@@ -381,6 +457,7 @@ namespace
 			});
 		}
 
+		const CpuTimes cpu0 = process_cpu_times();
 		go.store(true, std::memory_order_release);
 		std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
 		stop.store(true, std::memory_order_relaxed);
@@ -388,6 +465,9 @@ namespace
 		{
 			t.join();
 		}
+		const CpuTimes cpu1 = process_cpu_times();
+		g_userMs = static_cast<std::int64_t>(cpu1.userMs - cpu0.userMs + 0.5);
+		g_kernelMs = static_cast<std::int64_t>(cpu1.kernelMs - cpu0.kernelMs + 0.5);
 		readOps = reads.load();
 		writeOps = writes.load();
 	}
@@ -418,7 +498,9 @@ namespace
 			rwLabel = "N=" + std::to_string(a.workers);
 		}
 
-		std::cout << a.scenario << "|" << implName << "|" << rwLabel << "|" << readOps << "|" << writeOps << "|" << a.seconds << "\n";
+		std::cout << a.scenario << "|" << implName << "|" << rwLabel << "|" << readOps << "|" << writeOps << "|" << a.seconds << "|"
+		          << g_yields.load(std::memory_order_relaxed) << "|" << g_failed.load(std::memory_order_relaxed) << "|" << g_userMs << "|"
+		          << g_kernelMs << "\n";
 	}
 
 } // namespace

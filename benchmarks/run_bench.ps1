@@ -83,6 +83,10 @@ function Invoke-Config($exe, $impl, $sc) {
 	else { $args += @("--workers", "$($sc.N)", "--write-fraction", "$($sc.WF)") }
 
 	$samples = New-Object System.Collections.Generic.List[double]
+	$yieldSamples = New-Object System.Collections.Generic.List[double]
+	$failedSamples = New-Object System.Collections.Generic.List[double]
+	$userSamples = New-Object System.Collections.Generic.List[double]
+	$kernelSamples = New-Object System.Collections.Generic.List[double]
 	$last = ""
 	for ($i = 0; $i -lt $Repeats; $i++) {
 		$output = & $exe @args 2>&1
@@ -92,6 +96,12 @@ function Invoke-Config($exe, $impl, $sc) {
 		$last = [string]$output.Trim()
 		$p = $last.Split("|")
 		$samples.Add((([double]$p[3]) + ([double]$p[4])) / [double]$p[5])
+		if ($p.Count -ge 10) {
+			$yieldSamples.Add([double]$p[6])
+			$failedSamples.Add([double]$p[7])
+			$userSamples.Add([double]$p[8])
+			$kernelSamples.Add([double]$p[9])
+		}
 	}
 	$sorted = @($samples | Sort-Object)
 	$median = if ($sorted.Count % 2 -eq 1) {
@@ -111,8 +121,19 @@ function Invoke-Config($exe, $impl, $sc) {
 		MedianOpsPerSecond = $median
 		MinOpsPerSecond = $min
 		MaxOpsPerSecond = $max
+		MedianYields = Get-Median $yieldSamples
+		MedianFailed = Get-Median $failedSamples
+		MedianUserMs = Get-Median $userSamples
+		MedianKernelMs = Get-Median $kernelSamples
 		SpreadPct = $spread
 	}
+}
+
+function Get-Median($values) {
+	$sorted = @($values | Sort-Object)
+	if ($sorted.Count -eq 0) { return 0.0 }
+	if ($sorted.Count % 2 -eq 1) { return [double]$sorted[[int][math]::Floor($sorted.Count / 2)] }
+	return ([double]$sorted[$sorted.Count / 2 - 1] + [double]$sorted[$sorted.Count / 2]) / 2.0
 }
 
 function Get-CompilerLabel([string]$kind) {
@@ -212,6 +233,14 @@ function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [st
 		$md.Add("| $sc | $([int64]$baselineRow.MedianOpsPerSecond) | $([int64]$rsm.MedianOpsPerSecond) | **$([math]::Round($sp, 2))x** | $verdict |")
 	}
 	$md.Add("")
+	$md.Add("## Telemetry (medians across repeats)")
+	$md.Add("")
+	$md.Add("| Scenario | Impl | failed try_lock | yields | user ms | kernel ms |")
+	$md.Add("|---|---|---:|---:|---:|---:|")
+	foreach ($r in $rows) {
+		$md.Add("| $($r.Scenario) | $($r.Impl) | $([int64]$r.MedianFailed) | $([int64]$r.MedianYields) | $([math]::Round($r.MedianUserMs)) | $([math]::Round($r.MedianKernelMs)) |")
+	}
+	$md.Add("")
 	$md.Add("<details><summary>Raw lines (last run of each pair)</summary>")
 	$md.Add("")
 	$md.Add('```')
@@ -260,6 +289,10 @@ function Invoke-Toolchain([string]$kind) {
 			MedianOpsPerSecond = $baselineRow.MedianOpsPerSecond
 			MinOpsPerSecond = $baselineRow.MinOpsPerSecond
 			MaxOpsPerSecond = $baselineRow.MaxOpsPerSecond
+			MedianYields = $baselineRow.MedianYields
+			MedianFailed = $baselineRow.MedianFailed
+			MedianUserMs = $baselineRow.MedianUserMs
+			MedianKernelMs = $baselineRow.MedianKernelMs
 			SpreadPct = $baselineRow.SpreadPct
 		})
 		$rows.Add([pscustomobject]@{
@@ -269,6 +302,10 @@ function Invoke-Toolchain([string]$kind) {
 			MedianOpsPerSecond = $impl.MedianOpsPerSecond
 			MinOpsPerSecond = $impl.MinOpsPerSecond
 			MaxOpsPerSecond = $impl.MaxOpsPerSecond
+			MedianYields = $impl.MedianYields
+			MedianFailed = $impl.MedianFailed
+			MedianUserMs = $impl.MedianUserMs
+			MedianKernelMs = $impl.MedianKernelMs
 			SpreadPct = $impl.SpreadPct
 		})
 	}

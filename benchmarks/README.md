@@ -73,6 +73,19 @@ magnitude faster on read-heavy nested workloads", not "13.59x" - and use the
 `-Repeats` raises the confidence but not the machine's quietness: close
 everything else before measuring, or the numbers describe your browser.
 
+## Telemetry
+
+Every run also reports, after the existing columns, the number of failed
+`try_lock`/`try_lock_shared` attempts, the number of `yield()` calls that
+followed them, and the process CPU milliseconds split into user and kernel time.
+`run_bench.ps1` aggregates them (medians across repeats) into a **Telemetry**
+table in each report.
+
+They are diagnostic, not a gate: on S3 the `recursive_mutex` baseline can show ten
+times the failure rate of RSM while RSM's numbers stay flat, which is what moves
+the speedup. A high kernel share means the run spent its time in the scheduler,
+not in the lock.
+
 ## Scenarios
 
 | ID | Description |

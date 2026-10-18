@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:c7b03c8285dc -->
+<!-- translated-from: README.md sha256:29b9f63a581b -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -79,6 +79,16 @@ fork 或新克隆无需账号即可验证格式。
 `ci-*.md`。
 
 `-Repeats` 提高的是置信度，不是机器的安静程度：测量前把其他东西都关掉，否则测出来的是你的浏览器。
+
+## 遥测
+
+每次运行在原有列之后还会报告：失败的 `try_lock`/`try_lock_shared` 次数、随之发生的
+`yield()` 次数，以及进程 CPU 毫秒（user/kernel 分开）。`run_bench.ps1` 会把它们
+（多次重复的中位数）汇总成报告里的 **Telemetry** 表。
+
+这些是诊断量，不是 gate：在 S3 上，`recursive_mutex` 基线的失败次数可以是 RSM 的十倍，
+而 RSM 自己的数字保持平稳——真正让 speedup 摆动的是前者。kernel 占比高说明时间花在
+调度器里，而不是锁上。
 
 ## 场景
 

@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Benchmark runs report contention telemetry: failed `try_lock`/`try_lock_shared` attempts, the `yield()` calls that follow them, and process user/kernel CPU milliseconds; `run_bench.ps1` adds a Telemetry table to each report. It is diagnostic - the gate is unchanged - and it shows the S3 speedup swings come from the `recursive_mutex` baseline's failure rate, not from RSM.
 - Optional Bencher integration: `run_bench.ps1 -Json <path>` emits Bencher Metric Format (throughput median plus min/max per scenario and implementation), and `benchmarks.yml` sends it with `bencher run --adapter json` when the `BENCHER_PROJECT` variable and `BENCHER_API_KEY` secret exist - otherwise it validates the file with `--dry-run`. The 40% gate is unchanged; Bencher is tracking only.
 - Documented the ODR contract for `RSM_SHARED_SLOT_COUNT`: it sizes the class's slot array, so every translation unit must use the same value. The CMake interface target now propagates an optional `RSM_SHARED_SLOT_COUNT` cache value to all linked targets. The README also states that the destructor's release/`RSM_NO_DEBUG_ASSERT` silent slot cleanup is damage control for UB, not safe destruction.
 
