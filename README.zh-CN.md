@@ -90,8 +90,8 @@ package 固化了构建时使用的值，所有消费者必须沿用该值；直
 
 ## 与 `std::recursive_mutex` 的跑分对比
 
-跑分框架见 [benchmarks/README.md](benchmarks/README.md)，跨工具链的完整情况见
-[docs/platform-notes.md](docs/platform-notes.md)。
+跑分框架见 [benchmarks/README.zh-CN.md](benchmarks/README.zh-CN.md)，跨工具链的完整情况见
+[docs/platform-notes.zh-CN.md](docs/platform-notes.zh-CN.md)。
 
 | 纯独占路径（他们的 S7 形态） | `recursive_mutex` | 本库 | 比值 |
 |---|---:|---:|---:|
@@ -102,7 +102,7 @@ package 固化了构建时使用的值，所有消费者必须沿用该值；直
 
 > **协议：** 8 线程、`try_lock` + `yield` 自旋、嵌套深度 3、5 次交错的 1 秒轮次取中位，
 > 跑在一台 32 核 Windows 主机上。原始 ops/s 与同一张表在
-> [docs/platform-notes.md](docs/platform-notes.md) §2 与 §6。
+> [docs/platform-notes.zh-CN.md](docs/platform-notes.zh-CN.md) §2 与 §6。
 >
 > 这与 [benchmarks/results](benchmarks/results) 是两套不同的框架（3 秒 × 5 次，加解锁之间有实际工作），
 > 所以比值不同：那套框架的 S7 形态报 2.59×（MSVC）与 1.32×（MinGW 原生后端），这里是 1.17× 与 1.52×。
@@ -135,7 +135,7 @@ g++ -DRSM_BACKEND_STD ...          # 退回 std::shared_mutex（在那里不可�
 SRWLOCK 在独占模式下不可重入，这里没有问题：所有递归都在接触后端之前被拦截了。
 
 用 [benchmarks/run_bench.ps1](benchmarks/run_bench.ps1) 复现，它报告 `-Repeats` 次运行的中位数。
-离差为什么重要见 [benchmarks/README.md](benchmarks/README.md)。
+离差为什么重要见 [benchmarks/README.zh-CN.md](benchmarks/README.zh-CN.md)。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File benchmarks/run_bench.ps1 -Toolchain both -Seconds 3 -Repeats 3
@@ -203,7 +203,7 @@ ctest --test-dir build --output-on-failure
 [tests/backend_contract.cpp](tests/backend_contract.cpp) 会在当前工具链上验证这个契约；
 信任一个新编译器或标准库之前先跑它。
 
-迁移指南与测试矩阵见 [docs/migration.md](docs/migration.md)。
+迁移指南与测试矩阵见 [docs/migration.zh-CN.md](docs/migration.zh-CN.md)。
 
 ## 写者饥饿可观测性（R2）
 
@@ -246,7 +246,7 @@ rsm::metrics::set_recorder(&stats);
   属主，表现为本库 `unlock()` 抛出的虚假 `operation_not_permitted`。MinGW 因此默认原生后端，
   `RSM_BACKEND_STD` 需要显式开启。换任何新工具链都要跑
   [tests/backend_contract.cpp](tests/backend_contract.cpp)；细节见
-  [docs/platform-notes.md](docs/platform-notes.md)。
+  [docs/platform-notes.zh-CN.md](docs/platform-notes.zh-CN.md)。
 - **字面上不满足 `Cpp17Lockable`。** 误用时 `unlock()` / `unlock_shared()` 会抛
   `std::system_error`，而命名要求写的是 *Throws: Nothing*
   （`[thread.mutex.requirements.mutex]`）。通用算法只会释放自己取得的锁，所以 `std::lock`、
@@ -273,7 +273,7 @@ AGENTS.md                         # 仓库规则，所有 agent 共用一份
 
 ## 参与贡献
 
-见 [CONTRIBUTING.md](.github/CONTRIBUTING.md)。较大的设计改动请先开 issue。
+见 [CONTRIBUTING.zh-CN.md](.github/CONTRIBUTING.zh-CN.md)。较大的设计改动请先开 issue。
 
 仓库规则在 [AGENTS.md](AGENTS.md)，一份文件同时服务 Claude Code、Codex、Cursor、Copilot 以及其它工具；`CLAUDE.md`、`.cursor/rules/repo.mdc` 与 `.github/copilot-instructions.md` 都指向它。
 其中可由程序检查的部分（UTF-8 BOM + CRLF、140 列、禁用 `#pragma comment(lib)`、头文件卫生、
@@ -283,7 +283,7 @@ CI 中执行，违规会直接让构建失败。用 `python3 scripts/check_repo_
 
 ## 安全
 
-见 [SECURITY.md](.github/SECURITY.md)。
+见 [SECURITY.zh-CN.md](.github/SECURITY.zh-CN.md)。
 
 ## 许可
 

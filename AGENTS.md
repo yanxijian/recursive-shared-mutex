@@ -201,6 +201,14 @@ between two Chinese characters; break after punctuation, a Latin word or inline
 code. This applies to the translated documents; English text may wrap normally.
 `scripts/check_repo_rules.py` reports the continuation line as `cjk-wrap`.
 
+### R15 - A translated document links to its own language **[CI]**
+
+A Simplified Chinese document links to the `.zh-CN.md` edition of another
+translated document, not the English one. The only cross-language link is the
+`[English](...)` switcher at the top. Fragments must use the translated heading
+anchor. `scripts/check_repo_rules.py` reports `lang-link` for a relative link to
+an English document whose translation exists.
+
 ## Working with this repository
 
 - **Push policy:** work on a branch, open a PR, let CI run. Never force-push

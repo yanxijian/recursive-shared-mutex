@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Translated documents now link to the matching `.zh-CN.md` page; the only cross-language link is the `[English](...)` switcher. The checker reports `lang-link` when a translated document points at an English page that has a translation.
 - The rule checker flags a newline between two Chinese characters in the translated documents: Markdown renders it as a space. Break after punctuation, a Latin word or inline code.
 ## [v0.4.1] - 2026-10-18
 

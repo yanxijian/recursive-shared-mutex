@@ -439,6 +439,61 @@ def check_chinese_wrapping(rep: Report) -> None:
             )
 
 
+LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
+LINK_DEF_RE = re.compile(r"^\s*\[[^\]]+\]:\s*(\S+)")
+
+
+def markdown_links(text: str) -> list[tuple[int, str, str]]:
+    """Return (line, label, target) for inline links and definitions outside
+    fenced code. Labels are empty for reference definitions."""
+    links: list[tuple[int, str, str]] = []
+    in_fence = False
+    for i, line in enumerate(text.splitlines(), 1):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for m in LINK_RE.finditer(line):
+            links.append((i, m.group(1), m.group(2).strip()))
+        m = LINK_DEF_RE.match(line)
+        if m:
+            links.append((i, "", m.group(1).strip()))
+    return links
+
+
+def missing_translation_links(text: str, base: Path) -> list[tuple[int, str, str]]:
+    """Links to an English document whose .zh-CN.md sibling exists."""
+    out: list[tuple[int, str, str]] = []
+    for line, label, target in markdown_links(text):
+        if label.strip().lower() == "english":
+            continue
+        if target.startswith(("http://", "https://", "mailto:", "#", "/")):
+            continue
+        path = target.split("#", 1)[0].split("?", 1)[0].strip("<>")
+        if not path.endswith(".md") or path.endswith(".zh-CN.md"):
+            continue
+        candidate = path[:-3] + ".zh-CN.md"
+        if (base / candidate).exists():
+            out.append((line, target, candidate))
+    return out
+
+
+def check_translated_links(rep: Report) -> None:
+    for english in TRANSLATED_DOCS:
+        zh_rel = english[:-3] + ".zh-CN.md"
+        zh_path = ROOT / zh_rel
+        if not zh_path.exists():
+            continue
+        text = zh_path.read_text(encoding="utf-8-sig")
+        for line, target, candidate in missing_translation_links(text, zh_path.parent):
+            rep.bad(
+                zh_rel,
+                "lang-link",
+                f"line {line}: links to {target}; use {candidate} so the Chinese page stays in Chinese",
+            )
+
+
 def check_markdown_links(files: list[Path], rep: Report) -> None:
     for path in files:
         if path.suffix.lower() != ".md":
@@ -547,6 +602,7 @@ def main() -> int:
     check_gitattributes(rep)
     check_translations(rep)
     check_chinese_wrapping(rep)
+    check_translated_links(rep)
     check_markdown_links(files, rep)
     check_version(rep)
     check_changelog(rep)

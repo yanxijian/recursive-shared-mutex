@@ -46,4 +46,4 @@ python3 scripts/check_repo_rules.py
 
 ## 行为准则
 
-本项目遵循 [Contributor Covenant](CODE_OF_CONDUCT.md)。
+本项目遵循 [Contributor Covenant](CODE_OF_CONDUCT.zh-CN.md)。

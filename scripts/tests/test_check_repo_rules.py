@@ -103,3 +103,23 @@ class ChineseWrappingTest(unittest.TestCase):
     def test_skips_headings(self) -> None:
         self.assertEqual(rules.cjk_wrap_lines("# 标题\n中文"), [])
 
+class LanguageLinkTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.dir = Path(self._tmp.name)
+        (self.dir / "README.md").write_text("", encoding="utf-8")
+        (self.dir / "README.zh-CN.md").write_text("", encoding="utf-8")
+
+    def test_flags_link_to_english_document(self) -> None:
+        got = rules.missing_translation_links("[Read](README.md)", self.dir)
+        self.assertEqual(got, [(1, "README.md", "README.zh-CN.md")])
+
+    def test_ignores_switcher_and_external_links(self) -> None:
+        text = "[English](README.md)\n[site](https://example.com)\n[local](README.zh-CN.md)\n"
+        self.assertEqual(rules.missing_translation_links(text, self.dir), [])
+
+    def test_ignores_links_inside_code(self) -> None:
+        text = "```\n[Read](README.md)\n```\n"
+        self.assertEqual(rules.missing_translation_links(text, self.dir), [])
+
