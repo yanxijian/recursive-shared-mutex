@@ -52,8 +52,10 @@ and CI sets no thresholds. Without the repository variable `BENCHER_PROJECT` and
 the secret `BENCHER_API_KEY`, the step runs `--dry-run` and prints the report to
 the log, so a fork or a fresh clone validates the format without an account.
 
-To enable it: create the project (or let `--ci-on-the-fly` create it on the first
-run), then set `BENCHER_PROJECT` as a repository variable and
+To enable it: create the project first (the sending path requires it to exist),
+then open the project's **Keys** page and create a key - the `bencher_run_*` value
+is shown once, and a key's detail page only shows its metadata afterwards. Set
+`BENCHER_PROJECT` (the project slug) as a repository variable and
 `BENCHER_API_KEY` as a secret. Start without thresholds - wall-clock noise on a
 shared runner is tens of percent, so a threshold only means something after a few
 weeks of history, and instruction-count benchmarks are a better basis for a hard

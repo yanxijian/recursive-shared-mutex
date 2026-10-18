@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:5864b5179534 -->
+<!-- translated-from: README.md sha256:c7b03c8285dc -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -66,8 +66,9 @@ powershell -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 3 
 `BENCHER_PROJECT` 和 secret `BENCHER_API_KEY` 时，步骤用 `--dry-run` 把报告打到日志，
 fork 或新克隆无需账号即可验证格式。
 
-启用方法：创建项目（或让首次运行的 `--ci-on-the-fly` 创建），把 `BENCHER_PROJECT` 设为
-仓库变量、`BENCHER_API_KEY` 设为 secret。先不要设阈值——共享 runner 的墙钟噪声有几十个
+启用方法：先创建项目（发送路径要求项目已存在），再打开项目的 **Keys** 页创建 key——
+`bencher_run_*` 的值只显示一次，key 的详情页之后只有元数据。把 `BENCHER_PROJECT`（项目 slug）
+设为仓库变量、`BENCHER_API_KEY` 设为 secret。先不要设阈值——共享 runner 的墙钟噪声有几十个
 百分点，阈值要等积累几周历史才有意义；真要硬 gate，指令数基准更合适。
 
 ## 这些数字有多准？
