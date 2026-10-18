@@ -2,7 +2,7 @@
 
 [English](roadmap.md) · **简体中文**
 
-<!-- translated-from: roadmap.md sha256:ffc6725ef361 -->
+<!-- translated-from: roadmap.md sha256:f0f80a96e098 -->
 
 RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 `std::recursive_mutex` 带到读写锁，
 直到代码库可以去递归化。本路线图覆盖剩余的生命周期。
@@ -99,7 +99,7 @@ R2 剩余的部分在消费方项目：把 `Recorder` 接到指标栈，并对 p
 - 编译期开关：`RSM_SHARED_SLOT_COUNT`、`RSM_VERSION`、`RSM_NO_DEBUG_ASSERT`、`RSM_BACKEND_STD`。
 - 面向分片数组的 `rsm::CacheAlignedRecursiveSharedMutex`（在那种场景下约 2×）。
 - 自动刷新 `benchmarks/results/compare-ci-*.md` 的跑分流水线，以及一套在 CI 中检查的仓库规则（`AGENTS.md`）。
-- `benchmarks/results/*.md` 已在 v0.3.0 上重测，带中位数和离差行。
+- `benchmarks/results/*.md` 是冻结的单机快照；`benchmarks/results/compare-ci-*.md` 是唯一自动刷新的基线。
 
 ## 待办
 

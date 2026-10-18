@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:aa08ffaabe2c -->
+<!-- translated-from: README.md sha256:8c7d59120d13 -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -115,13 +115,13 @@ gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过
 
 ## 已入库的结果
 
-`results/<toolchain>.md` —— 在真实工作站上测得，是其他文档引用的代表性数字。本地重新生成即可；CI 不会碰它们。
+`results/<toolchain>.md` —— 冻结的单机快照（32 核桌面、3 秒 × 5 次），是其他文档引用的代表性数字。CI 不会碰它们；只有库的性能特征发生实质变化时才重测。
 
 - [results/msvc.md](results/msvc.md)
 - [results/mingw-gcc.md](results/mingw-gcc.md)
 
-`results/compare-ci-<toolchain>.md` —— 4 核 GitHub runner，由每周的 compare 运行刷新。它是下一次 gate 的基线；
-**不要拿它和上面那两份比较**。
+`results/compare-ci-<toolchain>.md` —— 唯一自动刷新的基线：4 核 GitHub runner，由每周的 compare 运行刷新。
+它是下一次 gate 的基线；**不要拿它和上面的单机快照比较**。
 
 每份报告都记录它测的是哪个后端（`- Backend: ...`），因为 MinGW 的数字在 v0.3.0 改变了含义：以前是 winpthreads 上的
 `std::shared_mutex`，现在是原生 SRWLOCK 包装。v0.3.0 之前生成的报告在 MinGW 一栏写的是 `std::shared_mutex`，

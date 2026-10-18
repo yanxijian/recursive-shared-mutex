@@ -131,7 +131,7 @@ the standard's trade-off and a fair backend costs readers.
 - `rsm::CacheAlignedRecursiveSharedMutex` for sharded arrays (~2x there).
 - Benchmark automation that refreshes `benchmarks/results/compare-ci-*.md`, and a repo rule
   set (`AGENTS.md`) checked in CI.
-- `benchmarks/results/*.md` re-measured on v0.3.0, now with medians and a spread line.
+- `benchmarks/results/*.md` is a frozen single-host snapshot; `benchmarks/results/compare-ci-*.md` is the only auto-refreshed baseline.
 
 ## Pending
 

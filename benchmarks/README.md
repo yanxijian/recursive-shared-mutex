@@ -122,12 +122,12 @@ for the desktop numbers and manual checks.
 
 ## Checked-in results
 
-`results/<toolchain>.md` - measured on a real workstation, the representative numbers quoted elsewhere. Regenerate locally; CI does not touch them.
+`results/<toolchain>.md` - a frozen single-host snapshot (32-core desktop, 3 s x 5), the representative numbers quoted elsewhere. CI does not touch them; re-measure only when the library's performance characteristics change materially.
 
 - [results/msvc.md](results/msvc.md)
 - [results/mingw-gcc.md](results/mingw-gcc.md)
 
-`results/compare-ci-<toolchain>.md` - the 4-core GitHub runner, refreshed by the weekly compare run. It is the next run's gate baseline; **do not compare it with the desktop files above**.
+`results/compare-ci-<toolchain>.md` - the only auto-refreshed baseline: the 4-core GitHub runner, refreshed by the weekly compare run. It is the next run's gate baseline; **do not compare it with the desktop snapshot above**.
 
 Each report records the backend it measured (`- Backend: ...`), because MinGW's numbers changed meaning in v0.3.0: it used to be `std::shared_mutex` over winpthreads and is now the native SRWLOCK wrapper. Reports generated before v0.3.0 say `std::shared_mutex` on MinGW and are not comparable with the ones after it.
 

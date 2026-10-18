@@ -188,6 +188,7 @@ function Write-Report([string]$toolchainName, [string]$compilerLabel, $rows, [st
 	else {
 		$md.Add("- Runner: local")
 	}
+	$md.Add("- Snapshot: one host, not refreshed by CI; the auto-refreshed baseline is ``compare-ci-<toolchain>.md``.")
 	$md.Add("- Host hw_concurrency: $([Environment]::ProcessorCount)")
 	if (-not [string]::IsNullOrWhiteSpace($backend)) { $md.Add("- Backend: $backend") }
 	if ($Repeats -gt 1) {
