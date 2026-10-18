@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:ae2716392c84 -->
+<!-- translated-from: README.md sha256:2df247d85054 -->
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -90,18 +90,19 @@ package 固化了构建时使用的值，所有消费者必须沿用该值；直
 > 跑在一台 32 核 Windows 主机上。原始 ops/s 与同一张表在
 > [docs/platform-notes.md](docs/platform-notes.md) §2 与 §6。
 >
-> 这与 [benchmarks/results](benchmarks/results) 是两套不同的框架（3 秒 × 3 次，加解锁之间有实际工作），
-> 所以比值不同：那套框架报 1.03×（MSVC）与 1.42×（MinGW 原生后端），这里是 1.17× 与 1.52×。
-> 两者都表明纯独占路径在噪声范围内持平，绝对值都不能搬到别的机器上。本机 S1（读多）场景的运行间
-> 噪声可达 245%，因此请把数字当作数量级来读。
+> 这与 [benchmarks/results](benchmarks/results) 是两套不同的框架（3 秒 × 5 次，加解锁之间有实际工作），
+> 所以比值不同：那套框架的 S7 形态报 2.59×（MSVC）与 1.32×（MinGW 原生后端），这里是 1.17× 与 1.52×。
+> 两者都表明纯独占路径不低于持平；具体比值取决于协议，绝对值都不能搬到别的机器上。本机 S1（读多）
+> 场景的运行间噪声可达 245%，因此请把数字当作数量级来读。
 
 - **MSVC / clang 配 MSVC STL**：包装成本约每次加解锁 1.3 ns（4.6 ns vs 裸后端 3.3 ns，均为无争用），
-  而且不再取决于本线程在别处持有多少把共享锁。纯独占开销为 **0.9×–1.2×**，读密集负载总吞吐约提升
-  **6×–14×**。
+  而且不再取决于本线程在别处持有多少把共享锁。纯独占开销在 8 线程表里为 **1.17×–1.42×**，
+  3 秒 × 5 次的桌面运行里 S7 为 2.59×；读密集负载总吞吐约提升 **6×–11×**。
 - **MinGW-GCC 配 `RSM_BACKEND_STD`**（本库以前默认选它）：0.07×–0.2×，即独占路径回退 5×–15×。
-  原因在工具链而不在设计：libstdc++ 走 winpthreads 的 `std::shared_mutex` 比原生 `SRWLOCK` 慢约 11×，
-  每次 `thread_local` 访问都走 emutls，而且该后端的 `try_lock()` 连互斥都不保证。MinGW 现在默认
-  原生后端，原因就在这里。
+  原因在工具链而不在设计：libstdc++ 走 winpthreads 的 `std::shared_mutex` 后端下限约是其它工具链
+  SRWLOCK 后端的 11 倍（37.4 vs 3.3 ns，无争用）；叠加上包装层的 TLS 工作，独占加解锁是 61.5 vs
+  24.2 ns，每次 `thread_local` 访问都走 emutls，而且该后端的 `try_lock()` 连互斥都不保证。MinGW
+  现在默认原生后端，原因就在这里。
 - **MinGW-GCC 配原生后端（默认）**：每次独占加解锁从 62.7 ns 降到 24.2 ns（2.6×），共享配对从
   64.4 ns 降到 25.8 ns（2.5×），纯独占比值从 0.067× 变成 **1.52×**，比 `std::recursive_mutex` 更快。
   后端契约测试也重新通过。

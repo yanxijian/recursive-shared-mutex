@@ -2,7 +2,7 @@
 
 [English](platform-notes.md) · **简体中文**
 
-<!-- translated-from: platform-notes.md sha256:86c1e1e41aab -->
+<!-- translated-from: platform-notes.md sha256:2378fc0461aa -->
 
 所有数字都在同一台 Windows x64 主机上测得（争用场景 8 线程，`-O2`/`/O2`，非争用场景 2 M 次迭代）。
 绝对值与机器强相关；重要的是**比值**和通过/失败结果。`S7` 的比值取 5 轮交错 1 秒测量的中位数，
@@ -40,9 +40,9 @@ TLS 槽位查找要靠真正的读者并发才能回本。
 | clang 22.1 (MSVC STL) | 8,068,846 ops/s | 11,468,567 ops/s | **1.42×** |
 | MinGW-GCC 13.2 | 4,986,027 ops/s | 335,929 ops/s | **0.067×** |
 
-MinGW 那一行是 `RSM_BACKEND_STD`；原生后端在第 6 节达到 1.52×。仓库里已入库的跑分表用的是另一套框架
-（3 秒 × 3 次、加解锁之间有实际工作），报告 1.03×（MSVC）与 1.42×（MinGW 原生后端）：效应方向一致，
-具体比值取决于协议。那次 MinGW 运行还在五轮中出现过两次虚假的 `operation_not_permitted`，正是第 3 节描述的症状。
+MinGW 那一行是 `RSM_BACKEND_STD`；原生后端在第 6 节达到 1.52×。已入库的跑分表用的是另一套框架
+（3 秒 × 5 次、加解锁之间有实际工作），S7 形态报 2.59×（MSVC）与 1.32×（MinGW 原生后端）：
+两者不能直接相比，具体比值取决于协议。那次 MinGW 运行还在五轮中出现过两次虚假的 `operation_not_permitted`，正是第 3 节描述的症状。
 
 ## 3. 后端契约（为什么 MinGW 不只是慢）
 

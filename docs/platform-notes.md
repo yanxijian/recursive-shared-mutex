@@ -48,9 +48,9 @@ concurrency.
 | MinGW-GCC 13.2 | 4,986,027 ops/s | 335,929 ops/s | **0.067×** |
 
 The MinGW row is `RSM_BACKEND_STD`; the native backend reaches 1.52× in section 6.
-The checked-in benchmark tables measure a different harness (3 s × 3 repeats with real work
-between lock operations) and report 1.03× (MSVC) and 1.42× (MinGW, native backend): the sign
-of the effect agrees, the exact ratio is protocol-dependent. The MinGW run here also threw
+The checked-in benchmark tables measure a different harness (3 s × 5 runs with real work
+between lock operations) and report 2.59× (MSVC) and 1.32× (MinGW, native backend) for its S7
+shape: the ratios are not directly comparable, and the exact value is protocol-dependent. The MinGW run here also threw
 spurious `operation_not_permitted` twice during the five rounds, which is the symptom
 described in section 3.
 

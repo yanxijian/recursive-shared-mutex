@@ -99,23 +99,27 @@ See [benchmarks/README.md](benchmarks/README.md) for the harness and
 > table are in [docs/platform-notes.md](docs/platform-notes.md) §2 and §6.
 >
 > This is a different harness from [benchmarks/results](benchmarks/results)
-> (3 s × 3 repeats, real work between lock operations), so the ratios differ:
-> that harness reports 1.03× (MSVC) and 1.42× (MinGW, native backend), against
-> 1.17× and 1.52× here. Both show parity within noise on the exclusive path, and
-> neither transfers to another machine. Run-to-run noise on this host reaches
-> 245 % on the read-heavy scenario (S1), so treat the numbers as order-of-magnitude.
+> (3 s × 5 runs, real work between lock operations), so the ratios differ:
+> that harness reports 2.59× (MSVC) and 1.32× (MinGW, native backend) for its S7
+> shape, against 1.17× and 1.52× here. Both put the exclusive path at or above
+> parity; the exact ratio is protocol-dependent, and neither transfers to another
+> machine. Run-to-run noise on this host reaches 245 % on the read-heavy scenario
+> (S1), so treat the numbers as order-of-magnitude.
 
 - **MSVC / clang with the MSVC STL:** the wrapper costs about 1.3 ns per lock
   pair (4.6 ns vs 3.3 ns for the raw backend, both uncontended). The cost no
   longer depends on how many shared locks the thread holds elsewhere.
-  Exclusive-only overhead is **0.9×–1.2×**, and read-heavy workloads gain roughly
-  6×–14× total throughput.
+  Exclusive-only overhead is **1.17×–1.42×** in the 8-thread table (2.59× in the
+  3 s × 5 desktop run), and read-heavy workloads gain roughly **6×–11×** total
+  throughput.
 - **MinGW-GCC with `RSM_BACKEND_STD`** (what the library used to pick by
   default): 0.07×–0.2×, a 5×–15× regression on the exclusive path. The cause is
   the toolchain, not the design. libstdc++'s `std::shared_mutex` over winpthreads
-  is about 11× slower than a native `SRWLOCK`, every `thread_local` access goes
-  through emutls, and `try_lock()` on that backend is not mutually exclusive.
-  MinGW therefore defaults to the native backend.
+  has a backend floor about 11× higher than the SRWLOCK-based backends on the
+  other toolchains (37.4 vs 3.3 ns uncontended); with the wrapper's TLS work the
+  exclusive pair is 61.5 vs 24.2 ns, every `thread_local` access goes through
+  emutls, and `try_lock()` on that backend is not mutually exclusive. MinGW
+  therefore defaults to the native backend.
 - **MinGW-GCC with the native backend (the default):** 62.7 → 24.2 ns per
   exclusive lock/unlock pair (2.6×), 64.4 → 25.8 ns for the shared pair (2.5×),
   and the exclusive-only ratio goes from 0.067× to **1.52×**, faster than
