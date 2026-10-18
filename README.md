@@ -58,12 +58,14 @@ wasteful when a mutex is embedded in a per-object struct. Reproduce with
 
 | Macro | Default | Effect |
 |---|---|---|
-| `RSM_SHARED_SLOT_COUNT` | `256` | Per-thread cap on tracked mutexes; one slot is 16 B of TLS, so the default costs 4 KB per thread. Lower it for thread-heavy targets. |
+| `RSM_SHARED_SLOT_COUNT` | `256` | Per-thread cap on tracked mutexes; one slot is 16 B of TLS, so the default costs 4 KB per thread. Lower it for thread-heavy targets. It sizes a class member array, so it must be identical in every translation unit; never set it per-target. |
 | `RSM_VERSION_MAJOR/MINOR/PATCH`, `RSM_VERSION` | `0/4/0` | Header version, for consumers that only see the file (FetchContent). Kept in sync with `project(VERSION)`. |
 | `RSM_BACKEND_SRWLOCK` | on for MinGW, off elsewhere | Use the native Win32 SRWLOCK wrapper as the backend. Auto-selected on `__MINGW32__` because the alternative is unsound there. |
 | `RSM_BACKEND_STD` | off | Force `std::shared_mutex` even on MinGW. Only useful to reproduce the winpthreads defect; a weekly CI probe does exactly that. |
 | `RSM_NO_DEBUG_ASSERT` | off | Disables the debug-only "destroyed while locked" assertion. |
 | `RSM_NO_THREAD_MIGRATION_NOTICE` | off | Silences the C++20 coroutine-mode notice. |
+
+`RSM_SHARED_SLOT_COUNT` is part of the class definition, not a private tuning knob: it sizes the per-thread slot array. Every translation unit in the program must use the same value. Setting it on one target or one source file is an ODR violation (IFNDR) and the linker may silently merge one definition, giving other TUs a table of the wrong size. When this project is added via `add_subdirectory()`/FetchContent, its cache variable propagates to every linked target. An installed package carries the value it was built with; every consumer must use that same value, and consumers that include the header directly must set the macro globally.
 
 ## Benchmarks vs `std::recursive_mutex`
 
@@ -223,6 +225,7 @@ Zero cost when no recorder is installed; see
 ## Limitations
 
 - The per-thread TLS slot table is per-module (header-only): keep one mutex's `lock_shared`/`unlock_shared` sequence within a single module's TLS domain when DLLs/EXE boundaries are involved, or host the TLS state in a single exported module. Violating this is undefined behaviour, not just a stranded slot — [examples/cross_module_hazard](examples/cross_module_hazard) reproduces it with a real DLL/.so.
+- Destroying a mutex while this thread still holds a shared lock is undefined behaviour. Debug builds assert; with `NDEBUG` or `RSM_NO_DEBUG_ASSERT` the destructor silently drops this thread's slot as damage control, which does not make the destruction safe.
 - At most `kSharedSlotCount` (256) shared locks may be held concurrently by one thread (≈4 KB of TLS per thread). The next `lock_shared` throws `resource_unavailable_try_again`; `try_lock_shared` returns `false`. Slots recycle on unlock, so sequentially touching any number of mutexes is fine.
 - No lock upgrade (shared → exclusive): `lock()` throws `resource_deadlock_would_occur` by design; audit read-then-write call chains before moving readers to `shared_lock`.
 - `std::shared_mutex` underneath has no writer preference: writers may starve under continuous readers (see benchmarks S1/S5).

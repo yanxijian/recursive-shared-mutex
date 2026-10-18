@@ -41,7 +41,9 @@ clang-format --dry-run -Werror <files>   # the exact list is in .github/workflow
 ```
 
 Options: `-DRSM_BACKEND_SRWLOCK=...` (via `CMAKE_CXX_FLAGS`), `-DRSM_BUILD_STRESS=ON`,
-`-DRSM_BUILD_BENCHMARKS=ON`, `-DRSM_SHARED_SLOT_COUNT=<n>`.
+`-DRSM_BUILD_BENCHMARKS=ON`, `-DRSM_SHARED_SLOT_COUNT=<n>` (program-wide; propagated
+by the CMake interface target, or fixed in an installed package - never set this
+macro per-target).
 
 ## Hard rules
 

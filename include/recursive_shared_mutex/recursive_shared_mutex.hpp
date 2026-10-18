@@ -21,6 +21,11 @@
 //     that ever locks - lock() and try_lock() read the table too, not just
 //     readers. Lower it (64 -> 1 KB) on thread-heavy or embedded targets; raise
 //     it if one thread really holds more than 256 distinct shared locks at once.
+//     IMPORTANT: this value is part of the class definition - it sizes the slot
+//     table. Every translation unit in the program must use the same value.
+//     Setting it per-target or per-file is an ODR violation (IFNDR), not a
+//     supported layout: the linker may merge one definition and silently give
+//     the other TUs a table of the wrong size.
 //
 //   RSM_NO_DEBUG_ASSERT
 //     Disables the debug-only checks (destruction while locked).
@@ -286,6 +291,8 @@ namespace rsm
 			// inherits a held lock. Catch it here; a shared lock held by ANOTHER
 			// thread leaves no trace on this instance (it lives in that thread's
 			// table), so that case cannot be diagnosed from here.
+			// With NDEBUG or RSM_NO_DEBUG_ASSERT the cleanup below runs silently:
+			// it is damage control for UB, not permission to destroy a locked mutex.
 			SharedDepthSlot* slot = findActiveSlot();
 #if !defined(NDEBUG) && !defined(RSM_NO_DEBUG_ASSERT)
 			assert(slot == nullptr);
