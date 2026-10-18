@@ -169,7 +169,7 @@ jobs:
         # them the same BMF file is validated with --dry-run, so forks and fresh
         # clones still exercise the format. This is tracking only: the gate is
         # still the -RegressionPct comparison above, and no threshold is set here.
-        if: (inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain) && inputs.mode != 'compare'
+        if: inputs.toolchain == 'both' || inputs.toolchain == matrix.toolchain
         shell: pwsh
         env:
           BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
