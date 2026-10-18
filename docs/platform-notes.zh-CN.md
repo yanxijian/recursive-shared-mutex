@@ -82,7 +82,7 @@ MinGW 那一行是 `RSM_BACKEND_STD`；原生后端在第 6 节达到 1.52×。�
 
 CI 如何看住这件事：`.github/workflows/platform-matrix.yml` 每周跑一个 job
 `expected-fail / mingw winpthreads (red = upstream fixed)`，它用 `RSM_BACKEND_STD` 构建，并**期望**契约被违反。
-缺陷存在时它是绿的，只有当工具链不再违反契约时才变红——那正是删除它的信号。
+缺陷存在时它是绿的，只有当工具链不再违反契约时才变红；那说明可以删掉它了。
 
 32 位细节：`sizeof(rsm::RecursiveSharedMutex)` 降到 16，`lock+unlock` 为 7.9 ns，`std::recursive_mutex` 为 9.7 ns
 ——在那个配置上，包装层比它替换掉的东西更快。

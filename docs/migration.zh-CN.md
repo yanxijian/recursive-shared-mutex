@@ -2,7 +2,7 @@
 
 [English](migration.md) · **简体中文**
 
-<!-- translated-from: migration.md sha256:b9bc238eade6 -->
+<!-- translated-from: migration.md sha256:4bac5792a713 -->
 
 ## 目标
 
@@ -20,10 +20,11 @@
 | 共享递归 | 每线程一张 POD 槽位表，以 mutex 地址（`this`）为键；活跃槽位密集排在 `[0, used)`，深度归零时用"与末位交换"压缩回收 |
 | 升级（共享 → 独占） | `lock()` 抛 `resource_deadlock_would_occur`；`try_lock()` 返回 `false` |
 
-共享深度**没有**放在 `thread_local unordered_map` 里（在争用下的 `shared_mutex` 走分配器路径，在某些 MinGW 构建上很脆弱），也**没有**放在堆分配的
-`thread_local` 链表里：在 `thread_local` 析构中释放节点会在 MinGW-w64 GCC 13.2 ucrt/posix 的线程退出路径上稳定破坏堆（emutls，已用 gdb 复现）。
-槽位表是常量初始化的 POD，无析构、无堆分配；槽位以 mutex 地址为键，深度归零即回收，因此活跃集合跟踪的是**当前持有**的共享锁，而不是曾经碰过的 mutex。
-获取失败（表满，或测试钩子注入失败）都在**取底层锁之前**抛出，所以错误永远不会留下残槽。
+共享深度不放 `thread_local unordered_map`：在争用下的 `shared_mutex` 走分配器路径，在某些 MinGW 构建上很脆弱。
+堆分配的 `thread_local` 链表也不行：在 `thread_local` 析构中释放节点，会在 MinGW-w64 GCC 13.2 ucrt/posix 的线程退出
+路径上破坏堆（emutls，已用 gdb 复现）。槽位表是常量初始化的 POD，无析构、无堆分配；槽位以 mutex 地址为键，深度归零
+即回收，所以活跃集合跟踪的是**当前持有**的共享锁，而不是曾经碰过的 mutex。获取失败（表满，或测试钩子注入失败）都在
+**取底层锁之前**抛出，错误不会留下残槽。
 
 ## 迁移步骤
 
@@ -39,9 +40,9 @@
 - 不要在仍持锁时销毁 mutex。
 - 跨模块（DLL/EXE）：TLS 槽位表是**每模块**一份。同一把 mutex 的 `lock_shared`/`unlock_shared`
   序列必须留在同一个模块的 TLS 域内；如果一把 mutex 会被多个模块调用，应把 TLS 状态托管到单一导出模块，
-  而不是依赖 header-only 的 TLS。这不是"残槽"这种边缘情况：第二个模块的 `lock_shared()` 找不到槽位，
-  于是在一个**已经**持有共享锁的线程上再次调用底层的 `lock_shared()`，按 `[thread.sharedmutex]` 这是
-  **未定义行为**。SRWLOCK 和读者优先的 glibc/musl rwlock 会静默接受；写者优先的 rwlock 可能让调用线程死锁。
+  而不是依赖 header-only 的 TLS。按 `[thread.sharedmutex]`，这是**未定义行为**，不是"残槽"这种边缘情况：
+  第二个模块的 `lock_shared()` 找不到槽位，于是在一个**已经**持有共享锁的线程上再次调用底层的 `lock_shared()`。
+  SRWLOCK 和读者优先的 glibc/musl rwlock 会静默接受；写者优先的 rwlock 可能让调用线程死锁。
   `examples/cross_module_hazard/` 用真实 DLL/.so 复现了这一点，并已接入 CI。
 - 同一把锁上"先读后写"在 `recursive_mutex` 下是串行的，现在会抛 `resource_deadlock_would_occur`；把任何读者改成
   `shared_lock` 之前先审计。
@@ -65,8 +66,8 @@
 
 曾评估过一个上游 `release_shared_unchecked()`（跳过 TLS 记账，直接调用底层 `unlock_shared()`），结论是**否决**：
 它会让属主槽位停在 `{key, depth=1}`，而底层锁其实已经空了；之后属主线程任何 RAII 展开都会**第二次**释放底层锁——
-在 SRWLOCK/pthread 路径上无主释放 = 未定义行为 / 堆损坏。它只有在"保证属主永不再碰这把 mutex"（线程已终止、
-任务已彻底取消、外部守卫已移除）时才可能安全。这是核按钮，不是清理后门。
+在 SRWLOCK/pthread 路径上无主释放 = 未定义行为 / 堆损坏。只有在"保证属主永不再碰这把 mutex"（线程已终止、
+任务已彻底取消、外部守卫已移除）时，它才可能安全。它不是通用的清理路径。
 
 受支持的缓解方式是**归位解锁（homed unlock）**：RAII 守卫记录获取线程；若在外部线程尝试释放，绝不调用库内接口，
 只做标记与告警，然后要么把解锁送回属主线程/执行器（交给任务自身的展开逻辑；**不要**从违规处理器里往可能已停滞的

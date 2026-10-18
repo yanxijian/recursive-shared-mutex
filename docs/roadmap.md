@@ -45,7 +45,7 @@ see nothing; the notice fires exactly when a future bump enables coroutines):
 - Note-level (`#pragma message`), not `#warning`: enabling coroutine language
   mode is not misuse by itself; same-thread resume is legitimate.
 - Opt-out: `-DRSM_NO_THREAD_MIGRATION_NOTICE`.
-- Honest limits: nothing compile-time can detect thread migration or
+- Limits: nothing compile-time can detect thread migration or
   work-stealing executors (a runtime property), and C++17 does NOT exclude
   C++17-usable stackful coroutines/fibers or TBB-style pools - those are
   covered only by runtime affinity checks outside this library.

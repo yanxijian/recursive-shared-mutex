@@ -6,10 +6,10 @@ This page defines what "the library is validated" means here, how the evidence i
 recorded, and what the evidence does **not** cover. It is the contract the soak
 workflows are sized against; `verification/soak-history.md` is the ledger.
 
-The premise: a transition component is validated before a consumer trusts it,
-not by the first consumer discovering its bugs. The fixed suite covers the cases
-someone thought of; the model checker covers the spec over random sequences; the
-soak covers time and scheduler families.
+The goal is to validate a transition component before a consumer trusts it,
+rather than letting the first consumer find its bugs. The fixed suite covers the
+cases someone thought of; the model checker covers the spec over random
+sequences; the soak covers time and scheduler families.
 
 ## What runs today
 
@@ -39,9 +39,9 @@ choice, not a resource count.
 
 ## Exit criteria
 
-**Tier 1 - every release** (the 0.4.0 baseline already met it):
+**Tier 1 - every release** (the 0.4.x baseline already met it):
 
-- `ctest` green on every CI cell (30 tests at v0.4.0).
+- `ctest` green on every CI cell (30 tests at v0.4.1).
 - Nightly soak green for the release week, seeds derived from the run id.
 - One recorded batch of at least 8 job-hours with zero violations.
 
@@ -61,7 +61,7 @@ choice, not a resource count.
   `is_held_exclusive()` or a removed `under_exclusive_` guard is not evidence.
 - No known flaky test is left in the tree.
 
-The numbers are floors, not claims of completeness. Size batches from the
+These are floors, not a completeness claim. Size batches from the
 recorded rate: `ops_target / (ops_per_second x shards x minutes x 60)` gives the minutes
 per shard. The ledger now has the rate: an 8-shard x 300 min x 8-thread batch (40
 job-hours) produced **7.03 x 10^11 operations**, an 8-shard x 60 min batch produced
@@ -84,10 +84,10 @@ Tier 1 and Tier 2 are met, from the nine recorded batches in
 | platforms with zero violations | Linux (long runs), Windows, ARM64 |
 | mutation tests | still fail as designed |
 
-The platform split is deliberate: the long operation count comes from Linux; the
-Windows and ARM64 rows are short batches that show the same zero-violation result
-on their toolchains. A pass is evidence of absence of the observed failures, not
-a proof - see "What this does not cover".
+The split is uneven: the long operation count comes from Linux; the Windows and
+ARM64 rows are short batches that show the same zero-violation result on their
+toolchains. A pass is evidence of absence of the observed failures, not a proof;
+see "What this does not cover".
 
 ## Running it
 
@@ -117,10 +117,9 @@ The 6-hour job limit is the constraint: keep `minutes` at 300 or below.
 A red run is triaged, never silenced. The first known case:
 
 - TSan reports a **lock-order inversion** in `model_check`'s phase 1. That phase
-  holds several mutexes at once, but it has one thread, so it cannot deadlock;
-  TSan cannot see the phase boundary. The TSan job therefore runs `--mutexes 1`
-  (data-race detection does not need the multi-mutex layout) and the plain job
-  keeps 8. This is recorded here so the next reader does not "fix" the library.
+  holds several mutexes at once but uses one thread, so it cannot deadlock; TSan
+  cannot see the phase boundary. The TSan job runs `--mutexes 1` (data-race
+  detection does not need the multi-mutex layout); the plain job keeps 8.
 
 Silencing anything requires a comment at the point of silencing and a line in
 this section, with the seed that reproduces it.

@@ -12,7 +12,7 @@ Compares `rsm::RecursiveSharedMutex` (readers use shared locks unless noted) aga
 powershell -NoProfile -ExecutionPolicy Bypass -File .\run_bench.ps1 -Toolchain both -Seconds 3 -Repeats 3
 ```
 
-Each (scenario, implementation) pair runs in a **fresh process** so MinGW `shared_mutex` stress cannot poison later configs in-process. Every pair runs `-Repeats` times and the **median** throughput is reported: one run on a shared machine is far too noisy to compare.
+Each (scenario, implementation) pair runs in a **fresh process**, so MinGW `shared_mutex` stress cannot poison later configurations. Every pair runs `-Repeats` times and the report uses the **median** throughput; a single run on a shared machine is too noisy to compare.
 
 The driver is built through CMake (`-DRSM_BUILD_BENCHMARKS=ON`, target `bench_rsm`), so nothing depends on where Visual Studio happens to be installed.
 
@@ -27,7 +27,7 @@ The driver is built through CMake (`-DRSM_BUILD_BENCHMARKS=ON`, target `bench_rs
 Worth knowing:
 
 - Absolute ops/s belong to the runner that produced them. Read the ratio against `recursive_mutex`, measured in the same run.
-- The gate only uses a report CI produced on the same runner. Each compare report says how many rounds had a healthy baseline (within 80% of its best); scenarios with fewer than three healthy rounds are skipped, not failed.
+- The gate only uses CI-produced reports from the same runner. Each compare report records how many rounds had a healthy baseline (within 80% of its best); scenarios with fewer than three healthy rounds are skipped rather than failed.
 - GitHub runners have four cores. Shared locking needs more readers than cores to pay off, so S1-S5 sit near parity on CI even though a 32-core desktop shows a large win. CI is for drift detection, not for the performance story; the report says so when it sees fewer than eight cores.
 - `update_mode: pull-request` needs *Allow GitHub Actions to create and approve pull requests* under Settings > Actions > General; auto-merge needs no setting.
 
@@ -54,8 +54,8 @@ To enable it: create the project first (the sending path requires it to exist),
 then open the project's **Keys** page and create a key - the `bencher_run_*` value
 is shown once, and a key's detail page only shows its metadata afterwards. Set
 `BENCHER_PROJECT` (the project slug) as a repository variable and
-`BENCHER_API_KEY` as a secret. Start without thresholds - wall-clock noise on a
-shared runner is tens of percent, so a threshold only means something after a few
+`BENCHER_API_KEY` as a secret. Start without thresholds. Wall-clock noise on a
+shared runner is tens of percent; a threshold only becomes meaningful after a few
 weeks of history, and instruction-count benchmarks are a better basis for a hard
 gate.
 
@@ -68,8 +68,8 @@ between runs of the same binary. Treat the speedups as order-of-magnitude claims
 ("reads are much faster", not "13.59x"), and use the `compare-ci-*.md` reports,
 which pair both implementations on one fixed runner, for drift.
 
-`-Repeats` raises the confidence but not the machine's quietness: close
-everything else before measuring, or the numbers describe your browser.
+`-Repeats` raises confidence, not the machine's quietness. Close everything else
+before measuring; otherwise the numbers describe your browser.
 
 ## Telemetry
 
@@ -79,10 +79,10 @@ followed them, and the process CPU milliseconds split into user and kernel time.
 `run_bench.ps1` aggregates them (medians across repeats) into a **Telemetry**
 table in each report.
 
-They are diagnostic, not a gate: on S3 the `recursive_mutex` baseline can fail two
-orders of magnitude more often than RSM while RSM's own numbers stay flat, which
-is what moves the speedup. A high kernel share means the run spent its time in the scheduler,
-not in the lock.
+They are diagnostic, not a gate. On S3 the `recursive_mutex` baseline can fail two
+orders of magnitude more often than RSM while RSM's own numbers stay flat; the
+speedup moves because of the baseline. High kernel time means the run spent its
+time in the scheduler, not in the lock.
 
 ## Interleaved comparison (`-Compare`)
 

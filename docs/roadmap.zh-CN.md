@@ -2,7 +2,7 @@
 
 [English](roadmap.md) · **简体中文**
 
-<!-- translated-from: roadmap.md sha256:88e089e4eac4 -->
+<!-- translated-from: roadmap.md sha256:ffc6725ef361 -->
 
 RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 `std::recursive_mutex` 带到读写锁，
 直到代码库可以去递归化。本路线图覆盖剩余的生命周期。
@@ -37,7 +37,7 @@ RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 
 
 - 只是**提示级**（`#pragma message`），不是 `#warning`：启用协程语言模式本身不是误用；同线程恢复是合法的。
 - 关闭开关：`-DRSM_NO_THREAD_MIGRATION_NOTICE`。
-- 诚实的边界：编译期无法检测线程迁移或工作窃取执行器（那是运行时属性），而 C++17 **并不**排除可在 C++17 使用的
+- 边界：编译期无法检测线程迁移或工作窃取执行器（那是运行时属性），而 C++17 **并不**排除可在 C++17 使用的
   有栈协程/纤程或 TBB 风格线程池——那些只能由本库之外的运行时亲和性检查覆盖。
 
 验收：只改注释/预处理器的变更；边界测试套件不变；用 `-std=c++20` 编译一个 TU 能看到提示，`-std=c++17` 看不到。

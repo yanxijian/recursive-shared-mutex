@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:2a87a9beb6dd -->
+<!-- translated-from: README.md sha256:4f48bd60d417 -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -16,7 +16,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run_bench.ps1 -Toolchain b
 ```
 
 每个 (场景, 实现) 组合都在**独立进程**中运行，这样 MinGW `shared_mutex` 的压力测试不会污染同进程后续的配置。
-每个组合跑 `-Repeats` 次并报告**中位数**：在共享机器上单次运行噪声太大，无法用于比较。
+每个组合跑 `-Repeats` 次，报告取**中位数**；共享机器上单次运行的噪声太大，不适合用来比较。
 
 跑分驱动通过 CMake 构建（`-DRSM_BUILD_BENCHMARKS=ON`，目标 `bench_rsm`），因此不依赖 Visual Studio 装在哪里。
 
@@ -37,8 +37,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\run_bench.ps1 -Toolchain b
 注意事项：
 
 - 绝对 ops/s 属于产出它的机器。要看的是同一次运行内相对 `recursive_mutex` 的比值。
-- 闸门只使用同一 runner 上 CI 自己产出的报告。每份 compare 报告都会写明有多少轮基线是健康的
-  （达到本轮最好成绩的 80% 以内）；健康轮次少于 3 的场景跳过，而不是判失败。
+- 闸门只使用同一 runner 上 CI 产出的报告。每份 compare 报告会记录有多少轮基线是健康的
+  （达到本轮最好成绩的 80% 以内）；健康轮次少于 3 的场景跳过，不判失败。
 - GitHub runner 只有 4 核。共享锁要读者多于核数才有收益，所以 CI 上 S1–S5 接近 1.0×，而 32 核桌面
   能拉开明显差距。CI 用于同硬件上的漂移检测，不是性能结论；少于 8 核时报告会自己注明。
 - `update_mode: pull-request` 需要在 Settings > Actions > General 打开
@@ -63,17 +63,18 @@ fork 或新克隆无需账号即可验证格式。
 
 启用方法：先创建项目（发送路径要求项目已存在），再打开项目的 **Keys** 页创建 key——
 `bencher_run_*` 的值只显示一次，key 的详情页之后只有元数据。把 `BENCHER_PROJECT`（项目 slug）
-设为仓库变量、`BENCHER_API_KEY` 设为 secret。先不要设阈值——共享 runner 的墙钟噪声有几十个
-百分点，阈值要等积累几周历史才有意义；真要硬 gate，指令数基准更合适。
+设为仓库变量、`BENCHER_API_KEY` 设为 secret。先不要设阈值。共享 runner 的墙钟噪声有几十个
+百分点，阈值要等积累几周历史才有意义；真要硬性 gate，指令数基准更合适。
 
 ## 这些数字有多准？
 
-不太准，报告自己也这么说：每份报告都带一行 `Run-to-run spread`，即各次重复之间实测的最小..最大值。
+不准。每份报告都带一行 `Run-to-run spread`，即各次重复之间实测的最小..最大值。
 在一台忙碌的 32 核桌面上，中位离差 18–48%，最差的场景（MSVC 的 S1）在同一二进制的不同运行之间
 曾波动 245%。
-请把加速比当作数量级——"读密集嵌套负载上快一个数量级"，而不是"13.59×"——漂移请用同一固定 runner 上 `compare-ci-*.md` 的配对报告。
+请把加速比当作数量级（"读密集嵌套负载上快一个数量级"，而不是"13.59×"）；漂移请用同一固定 runner 上
+`compare-ci-*.md` 的配对报告。
 
-`-Repeats` 提高的是置信度，不是机器的安静程度：测量前把其他东西都关掉，否则测出来的是你的浏览器。
+`-Repeats` 提高的是置信度，不是机器的安静程度。测量前把其他东西都关掉，否则测出来的是你的浏览器。
 
 ## 遥测
 
@@ -81,9 +82,9 @@ fork 或新克隆无需账号即可验证格式。
 `yield()` 次数，以及进程 CPU 毫秒（user/kernel 分开）。`run_bench.ps1` 会把它们
 （多次重复的中位数）汇总成报告里的 **Telemetry** 表。
 
-这些是诊断量，不是 gate：在 S3 上，`recursive_mutex` 基线的失败次数可以比 RSM 高两个数量级，
-而 RSM 自己的数字保持平稳——真正让 speedup 摆动的是前者。kernel 占比高说明时间花在
-调度器里，而不是锁上。
+这些是诊断量，不是 gate。在 S3 上，`recursive_mutex` 基线的失败次数可以比 RSM 高两个数量级，
+而 RSM 自己的数字保持平稳；speedup 的摆动来自基线。kernel 占比高说明时间花在调度器里，
+而不是锁上。
 
 ## 交替对比（`-Compare`）
 
@@ -95,7 +96,7 @@ fork 或新克隆无需账号即可验证格式。
 在 `try_lock` + `yield` 自旋下基线是双峰的：它一旦 convoy，比值就被抬高。健康轮次数
 说明了这个数字里有多少是基线行为、多少是库本身。这是每周的默认路径：
 `mode=compare`（定时任务的默认值）写出 `compare-ci-<toolchain>.md`（提交进仓库，
-作为下一次运行的 gate 基线）以及发给 Bencher 的 BMF，一次测量同时供给 gate 与绝对历史。
+作为下一次运行的 gate 基线）以及发给 Bencher 的 BMF，同一次测量既供 gate 也供绝对历史。
 gate 用健康比值对比上一份报告，健康轮次少于 3 的场景跳过。pull request 的门槛也用这份报告；
 `measure` 模式保留给桌面数字和手动检查。
 
