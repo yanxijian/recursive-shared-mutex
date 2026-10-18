@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-<!-- translated-from: README.md sha256:3b3e928f0031 -->
+<!-- translated-from: README.md sha256:5864b5179534 -->
 
 在嵌套加锁、约 4 MiB 工作集的条件下，对比 `rsm::RecursiveSharedMutex`（除特别说明外读者走共享锁）与
 `std::recursive_mutex`。
@@ -63,11 +63,11 @@ powershell -NoProfile -File benchmarks/run_bench.ps1 -Toolchain msvc -Seconds 3 
 `benchmarks.yml` 在测量后把该文件交给 `bencher run --adapter json`。
 
 这**只是跟踪**。gate 仍是上面的 `-RegressionPct` 比较，CI 不设置阈值。没有仓库变量
-`BENCHER_PROJECT` 和 secret `BENCHER_API_TOKEN` 时，步骤用 `--dry-run` 把报告打到日志，
+`BENCHER_PROJECT` 和 secret `BENCHER_API_KEY` 时，步骤用 `--dry-run` 把报告打到日志，
 fork 或新克隆无需账号即可验证格式。
 
 启用方法：创建项目（或让首次运行的 `--ci-on-the-fly` 创建），把 `BENCHER_PROJECT` 设为
-仓库变量、`BENCHER_API_TOKEN` 设为 secret。先不要设阈值——共享 runner 的墙钟噪声有几十个
+仓库变量、`BENCHER_API_KEY` 设为 secret。先不要设阈值——共享 runner 的墙钟噪声有几十个
 百分点，阈值要等积累几周历史才有意义；真要硬 gate，指令数基准更合适。
 
 ## 这些数字有多准？

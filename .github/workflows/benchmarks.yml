@@ -13,7 +13,7 @@
 #      - the gate only compares against a baseline CI itself produced. The files
 #        committed today were measured on a developer machine, so until this
 #        workflow has refreshed them once, the gate warns instead of failing.
-#  * Bencher tracking is optional (BENCHER_PROJECT + BENCHER_API_TOKEN); without
+#  * Bencher tracking is optional (BENCHER_PROJECT + BENCHER_API_KEY); without
 #    them the step validates the BMF file with --dry-run. It is not a gate.
 #  * "Update" opens a PR rather than pushing to main: a weekly bot commit with
 #    +-2% noise is worse than no bot at all.
@@ -124,7 +124,7 @@ jobs:
             -Json "$env:RUNNER_TEMP\bmf-${{ matrix.name }}.json"
 
       - name: Send to Bencher (optional tracking)
-        # Off unless BENCHER_PROJECT and BENCHER_API_TOKEN are configured. Without
+        # Off unless BENCHER_PROJECT and BENCHER_API_KEY are configured. Without
         # them the same BMF file is validated with --dry-run, so forks and fresh
         # clones still exercise the format. This is tracking only: the gate is
         # still the -RegressionPct comparison above, and no threshold is set here.
@@ -132,7 +132,7 @@ jobs:
         shell: pwsh
         env:
           BENCHER_PROJECT: ${{ vars.BENCHER_PROJECT }}
-          BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          BENCHER_API_KEY: ${{ secrets.BENCHER_API_KEY }}
           BMF_FILE: ${{ runner.temp }}\bmf-${{ matrix.name }}.json
         run: |
           $url = "https://github.com/bencherdev/bencher/releases/download/v0.6.13/bencher-v0.6.13-windows-x86-64.exe"
@@ -143,19 +143,19 @@ jobs:
             throw "bencher checksum mismatch: $hash"
           }
           $bencherArgs = @("run", "--adapter", "json", "--file", $env:BMF_FILE)
-          if ($env:BENCHER_PROJECT -and $env:BENCHER_API_TOKEN) {
-            $bencherArgs += @("--project", $env:BENCHER_PROJECT, "--token", $env:BENCHER_API_TOKEN,
-                              "--branch", "${{ github.ref_name }}", "--ci-on-the-fly")
+          if ($env:BENCHER_PROJECT -and $env:BENCHER_API_KEY) {
+            $bencherArgs += @("--project", $env:BENCHER_PROJECT, "--key", $env:BENCHER_API_KEY,
+                              "--branch", "${{ github.ref_name }}")
             Write-Host "Sending BMF to Bencher project $env:BENCHER_PROJECT"
           } else {
-            # The CLI reads BENCHER_PROJECT/BENCHER_API_TOKEN from the environment
+            # The CLI reads BENCHER_PROJECT/BENCHER_API_KEY from the environment
             # too, and an empty value is rejected before --dry-run is honoured.
             Remove-Item Env:BENCHER_PROJECT -ErrorAction SilentlyContinue
-            Remove-Item Env:BENCHER_API_TOKEN -ErrorAction SilentlyContinue
+            Remove-Item Env:BENCHER_API_KEY -ErrorAction SilentlyContinue
             # CI=true makes the CLI require either --project or --ci-on-the-fly;
             # dry-run creates nothing, so the latter is the correct placeholder.
             $bencherArgs += @("--dry-run", "--ci-on-the-fly")
-            Write-Host "::notice::BENCHER_PROJECT / BENCHER_API_TOKEN not configured; validating BMF with --dry-run"
+            Write-Host "::notice::BENCHER_PROJECT / BENCHER_API_KEY not configured; validating BMF with --dry-run"
           }
           & $exe @bencherArgs
           if ($LASTEXITCODE -ne 0) { throw "bencher failed with exit code $LASTEXITCODE" }

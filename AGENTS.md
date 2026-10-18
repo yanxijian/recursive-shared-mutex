@@ -257,7 +257,7 @@ the automation overwrite the desktop files.
   does open one and leaves it for a human - that is the only mode that touches
   the pull-request list. Do not add `gh pr merge` to any workflow.
 - **Bencher tracking is optional and off by default.** `benchmarks.yml` writes
-  BMF when the `BENCHER_PROJECT` variable and `BENCHER_API_TOKEN` secret are set,
+  BMF when the `BENCHER_PROJECT` variable and `BENCHER_API_KEY` secret are set,
   and dry-runs the same file otherwise. It is tracking, not a gate: do not replace
   the `-RegressionPct` comparison with a Bencher threshold until the noise regime
   is known, and never make a fork PR depend on the token.

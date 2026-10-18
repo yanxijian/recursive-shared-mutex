@@ -49,12 +49,12 @@ to `bencher run --adapter json` after measuring.
 
 It is **tracking only**. The gate is still the `-RegressionPct` comparison above,
 and CI sets no thresholds. Without the repository variable `BENCHER_PROJECT` and
-the secret `BENCHER_API_TOKEN`, the step runs `--dry-run` and prints the report to
+the secret `BENCHER_API_KEY`, the step runs `--dry-run` and prints the report to
 the log, so a fork or a fresh clone validates the format without an account.
 
 To enable it: create the project (or let `--ci-on-the-fly` create it on the first
 run), then set `BENCHER_PROJECT` as a repository variable and
-`BENCHER_API_TOKEN` as a secret. Start without thresholds - wall-clock noise on a
+`BENCHER_API_KEY` as a secret. Start without thresholds - wall-clock noise on a
 shared runner is tens of percent, so a threshold only means something after a few
 weeks of history, and instruction-count benchmarks are a better basis for a hard
 gate.
