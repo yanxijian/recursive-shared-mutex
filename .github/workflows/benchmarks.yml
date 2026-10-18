@@ -150,7 +150,9 @@ jobs:
             # too, and an empty value is rejected before --dry-run is honoured.
             Remove-Item Env:BENCHER_PROJECT -ErrorAction SilentlyContinue
             Remove-Item Env:BENCHER_API_TOKEN -ErrorAction SilentlyContinue
-            $bencherArgs += "--dry-run"
+            # CI=true makes the CLI require either --project or --ci-on-the-fly;
+            # dry-run creates nothing, so the latter is the correct placeholder.
+            $bencherArgs += @("--dry-run", "--ci-on-the-fly")
             Write-Host "::notice::BENCHER_PROJECT / BENCHER_API_TOKEN not configured; validating BMF with --dry-run"
           }
           & $exe @bencherArgs
