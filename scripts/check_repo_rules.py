@@ -397,6 +397,48 @@ def check_gitattributes(rep: Report) -> None:
 MD_LINK = re.compile(r"\]\(([^)]+)\)")
 
 
+CJK_END = re.compile(r"[\u4e00-\u9fff]$")
+CJK_START = re.compile(r"^[\u4e00-\u9fff]")
+CJK_PUNCT_END = re.compile(r"[，。；：！？、]$")
+
+
+def cjk_wrap_lines(text: str) -> list[int]:
+    """Return the 1-based lines that start with a Chinese character after a
+    line that ends with one. Markdown renders that newline as a space."""
+    lines = text.splitlines()
+    wrapped: list[int] = []
+    in_fence = False
+    for i in range(len(lines) - 1):
+        line = lines[i]
+        nxt = lines[i + 1]
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if line.startswith(("#", "|", "    ")) or nxt.startswith(("#", "|", "    ")):
+            continue
+        if CJK_END.search(line) and not CJK_PUNCT_END.search(line) and CJK_START.match(nxt):
+            wrapped.append(i + 2)
+    return wrapped
+
+
+def check_chinese_wrapping(rep: Report) -> None:
+    for english in TRANSLATED_DOCS:
+        zh_rel = english[:-3] + ".zh-CN.md"
+        zh_path = ROOT / zh_rel
+        if not zh_path.exists():
+            continue
+        text = zh_path.read_text(encoding="utf-8-sig")
+        for line in cjk_wrap_lines(text):
+            rep.bad(
+                zh_rel,
+                "cjk-wrap",
+                f"line {line}: a newline between Chinese characters renders as a space; "
+                "break after punctuation, a Latin token or inline code",
+            )
+
+
 def check_markdown_links(files: list[Path], rep: Report) -> None:
     for path in files:
         if path.suffix.lower() != ".md":
@@ -504,6 +546,7 @@ def main() -> int:
     check_line_endings(files, rep, args.fix)
     check_gitattributes(rep)
     check_translations(rep)
+    check_chinese_wrapping(rep)
     check_markdown_links(files, rep)
     check_version(rep)
     check_changelog(rep)

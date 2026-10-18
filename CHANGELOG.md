@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The rule checker flags a newline between two Chinese characters in the translated documents: Markdown renders it as a space. Break after punctuation, a Latin word or inline code.
 ## [v0.4.1] - 2026-10-18
 
 ### Added

@@ -88,3 +88,18 @@ class ChangelogDefinitionTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ChineseWrappingTest(unittest.TestCase):
+    def test_flags_character_boundary_break(self) -> None:
+        self.assertEqual(rules.cjk_wrap_lines("中文\n中文"), [2])
+
+    def test_allows_break_after_punctuation(self) -> None:
+        self.assertEqual(rules.cjk_wrap_lines("中文，\n中文"), [])
+
+    def test_skips_fenced_code_and_tables(self) -> None:
+        text = "```\n中文\n中文\n```\n| 中文 |\n| 中文 |\n"
+        self.assertEqual(rules.cjk_wrap_lines(text), [])
+
+    def test_skips_headings(self) -> None:
+        self.assertEqual(rules.cjk_wrap_lines("# 标题\n中文"), [])
+

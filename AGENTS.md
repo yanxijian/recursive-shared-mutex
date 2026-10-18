@@ -126,7 +126,7 @@ against this table, and verifies that `.gitattributes` still declares it.
 
 ### R8 - A translated document stays linked and stays honest **[CI]**
 
-Eight documents have a Simplified Chinese version next to them
+Nine documents have a Simplified Chinese version next to them
 (`README.zh-CN.md`, `docs/roadmap.zh-CN.md`, ...). English stays the default; the
 translation is a companion, never a replacement.
 
@@ -193,6 +193,13 @@ handed to another thread.
 `benchmarks/results/compare-ci-*.md` comes from the 4-core CI runner and is only
 for run-to-run drift. Never quote a CI number as a performance claim, and never
 let the automation overwrite the desktop files.
+
+### R14 - Chinese text is not hard-wrapped between characters **[CI]**
+
+A newline inside a Chinese paragraph renders as a space on GitHub. Do not wrap
+between two Chinese characters; break after punctuation, a Latin word or inline
+code. This applies to the translated documents; English text may wrap normally.
+`scripts/check_repo_rules.py` reports the continuation line as `cjk-wrap`.
 
 ## Working with this repository
 
