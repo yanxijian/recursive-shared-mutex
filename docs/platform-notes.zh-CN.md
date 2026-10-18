@@ -153,9 +153,7 @@ build_and_run.cmd msvc                                     # Windows
 | MSVC：独占 / 共享 | 5.8 / 7.2 ns | 5.9 / 6.1 ns |
 | `sizeof` | 24 B | **8 B** |
 
-它在 MinGW 上输在哪里：当前设计让**递归独占**快路径完全不碰 TLS（就是两个实例内的原子变量），而纯 TLS 设计在
-每次 `lock()` **和**每次 `unlock()` 上都要付一次槽位查找。既然独占路径正是 MinGW 需要帮助的那条，这个重构等于
-拿"有问题的平台"去换"本来就没问题的平台"。否决。
+它在 MinGW 上输在哪里：当前设计让**递归独占**快路径完全不碰 TLS（就是两个实例内的原子变量），而纯 TLS 设计在每次 `lock()` **和**每次 `unlock()` 上都要付一次槽位查找。既然独占路径正是 MinGW 需要帮助的那条，这个重构等于拿"有问题的平台"去换"本来就没问题的平台"。否决。
 
 ### 单条槽位提示 + 每次操作只取一次 TLS
 
@@ -176,5 +174,4 @@ build_and_run.cmd msvc                                     # Windows
 
 用 `RSM_BACKEND_SRWLOCK` 时，包装层比裸 SRWLOCK 每对多约 20 ns（23.2 vs 3.4）。它分散在
 `std::this_thread::get_id()`（winpthreads 的 `pthread_self`）、`owner_` 上的两个 relaxed 原子、槽位记账和后端调用上
-——没有任何单点微改能挪动它。下一步应该是在目标工具链上跑 profiler，而不是继续猜；`benchmarks/` 目前无法区分
-这些贡献。
+——没有任何单点微改能挪动它。下一步应该是在目标工具链上跑 profiler，而不是继续猜；`benchmarks/` 目前无法区分这些贡献。

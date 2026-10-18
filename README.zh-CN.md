@@ -59,8 +59,7 @@ void read() {
 
 ## 分片数组：用按 cache line 对齐的变体
 
-默认实例是 24 字节，约 2.6 个实例就挤在一条 64 字节 cache line 上。当多把 mutex 相邻存放在
-数组或 vector 里时，各分片会对 owner 和计数器的写入产生伪共享。8 分片、16 线程，在 0%、15%、
+默认实例是 24 字节，约 2.6 个实例就挤在一条 64 字节 cache line 上。当多把 mutex 相邻存放在数组或 vector 里时，各分片会对 owner 和计数器的写入产生伪共享。8 分片、16 线程，在 0%、15%、
 50% 写三种负载下实测（MSVC 与 MinGW）：
 
 | | 普通 `RecursiveSharedMutex` | `CacheAlignedRecursiveSharedMutex` |
@@ -85,8 +84,7 @@ std::vector<rsm::CacheAlignedRecursiveSharedMutex> shards(8);
 | `RSM_NO_DEBUG_ASSERT` | 关 | 关闭仅 Debug 的“持锁析构”断言。 |
 | `RSM_NO_THREAD_MIGRATION_NOTICE` | 关 | 关闭 C++20 协程模式下的提示。 |
 
-`RSM_SHARED_SLOT_COUNT` 是类定义的一部分，不是私有调参项。只给某个 target 或某个源文件设置该宏
-属于 ODR 违规（IFNDR）：链接器可能合并其中一份定义，让其它 TU 拿到错误大小的槽表。通过
+`RSM_SHARED_SLOT_COUNT` 是类定义的一部分，不是私有调参项。只给某个 target 或某个源文件设置该宏属于 ODR 违规（IFNDR）：链接器可能合并其中一份定义，让其它 TU 拿到错误大小的槽表。通过
 `add_subdirectory()`/FetchContent 引入时，它的 cache 变量会传播给所有链接它的 target。安装后的
 package 固化了构建时使用的值，所有消费者必须沿用该值；直接包含头文件的消费者必须在全局设置该宏。
 
@@ -209,8 +207,7 @@ ctest --test-dir build --output-on-failure
 
 ## 写者饥饿可观测性（R2）
 
-任何不偏向写者的后端，例如 glibc 的 `pthread_rwlock` 和 Win32 SRWLOCK，在读压力下都可能让写者
-饿死。一个可选的埋点守卫可以在不触碰核心组件的前提下测量写等待与持有时长：
+任何不偏向写者的后端，例如 glibc 的 `pthread_rwlock` 和 Win32 SRWLOCK，在读压力下都可能让写者饿死。一个可选的埋点守卫可以在不触碰核心组件的前提下测量写等待与持有时长：
 
 ```cpp
 #include <recursive_shared_mutex/instrumented_write_lock.hpp>
@@ -278,8 +275,7 @@ AGENTS.md                         # 仓库规则，所有 agent 共用一份
 
 见 [CONTRIBUTING.md](.github/CONTRIBUTING.md)。较大的设计改动请先开 issue。
 
-仓库规则在 [AGENTS.md](AGENTS.md)，一份文件同时服务 Claude Code、Codex、Cursor、Copilot 以及
-其它工具；`CLAUDE.md`、`.cursor/rules/repo.mdc` 与 `.github/copilot-instructions.md` 都指向它。
+仓库规则在 [AGENTS.md](AGENTS.md)，一份文件同时服务 Claude Code、Codex、Cursor、Copilot 以及其它工具；`CLAUDE.md`、`.cursor/rules/repo.mdc` 与 `.github/copilot-instructions.md` 都指向它。
 其中可由程序检查的部分（UTF-8 BOM + CRLF、140 列、禁用 `#pragma comment(lib)`、头文件卫生、
 版本一致、changelog 段、译文档互链不得断开）由 `scripts/check_repo_rules.py` 在每次 push 时于
 CI 中执行，违规会直接让构建失败。用 `python3 scripts/check_repo_rules.py --fix` 修掉机械性问题，
