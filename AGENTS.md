@@ -210,6 +210,19 @@ English switcher at the top (the `[English]` link). Fragments must use the trans
 anchor. RepoRules reports `lang-link` for a relative link to
 an English document whose translation exists.
 
+### R16 - Prose is English **[review/CI]**
+
+Comments, commit messages and new README text are written in **English**. A
+quotation, a data sample or a pointer to a Chinese document heading may stay in
+its original language, marked with `cjk-ok` on that line (a comment) or anywhere
+in the message (a commit).
+
+- `comments.english` flags non-Latin script in comments; `commit_message.english`
+  rejects a non-English commit in the `commit-msg` hook. Both are configured in
+  `repo-rules.json`.
+- Deliberately **not** in scope: the translated documents themselves
+  (`*.zh-CN.md`), and the Chinese text a script prints for its user.
+
 ## Working with this repository
 
 - **Push policy:** work on a branch, open a PR, let CI run. Never force-push
