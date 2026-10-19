@@ -310,7 +310,8 @@
       "marker": "translated-from:",
       "stale": "warning",
       "cjk_wrap": true,
-      "keep_language": true
+      "keep_language": true,
+      "untracked": true
     },
     "languages": {
       "default": "README.md",
