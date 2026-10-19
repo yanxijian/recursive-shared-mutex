@@ -306,8 +306,7 @@ examples/                         # usage demos (incl. the cross-module hazard r
 benchmarks/                       # driver, CI automation, checked-in results
 docs/                             # design, migration, platform notes, roadmap, validation
 verification/                     # soak history, one row per recorded batch
-scripts/check_repo_rules.py       # the rules AGENTS.md promises CI enforces
-scripts/tests/                    # tests for the rules checker itself
+scripts/repo_rules.py             # the rules AGENTS.md promises CI enforces (vendored RepoRules)
 cmake/                            # package config
 .github/                          # workflows, issue/PR templates, CONTRIBUTING / SECURITY / CODE_OF_CONDUCT
 AGENTS.md                         # repository rules, one file for every agent
@@ -323,8 +322,8 @@ Codex, Cursor, Copilot and anything else; `CLAUDE.md`, `.cursor/rules/repo.mdc`
 and `.github/copilot-instructions.md` point at it. The mechanical rules (UTF-8 BOM
 and CRLF, 140 columns, no `#pragma comment(lib)`, header hygiene, version sync,
 changelog section, translated documents staying linked) run in CI on every push
-through `scripts/check_repo_rules.py`, so they fail the build instead of waiting
-for review. Run `python3 scripts/check_repo_rules.py --fix` to repair the
+through RepoRules (`scripts/repo_rules.py`), so they fail the build instead of waiting
+for review. Run `python3 scripts/repo_rules.py fix --config repo-rules.json` to repair the
 mechanical ones, and `git config core.hooksPath .githooks` to get them before the
 commit.
 

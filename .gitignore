@@ -36,7 +36,7 @@ _deps/
 .idea/
 *.code-workspace
 
-# Python (scripts/check_repo_rules.py is imported by its own tests)
+# Python
 __pycache__/
 *.pyc
 

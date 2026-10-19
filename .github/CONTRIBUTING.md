@@ -17,7 +17,7 @@ ctest --test-dir build --output-on-failure
 Before pushing, run the repository rules check (CI runs it too):
 
 ```bash
-python3 scripts/check_repo_rules.py
+python3 scripts/repo_rules.py check --config repo-rules.json
 ```
 
 ## Coding guidelines
@@ -29,7 +29,7 @@ python3 scripts/check_repo_rules.py
 - Add or update tests for behavior changes
 - Update `CHANGELOG.md` under `[Unreleased]` (or the next version section)
 - The full rule set is [AGENTS.md](../AGENTS.md); the parts a program can check
-  are enforced in CI by `scripts/check_repo_rules.py`
+  are enforced in CI by RepoRules (`scripts/repo_rules.py check`)
 
 ## Pull requests
 

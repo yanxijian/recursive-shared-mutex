@@ -2,7 +2,7 @@
 
 [English](CONTRIBUTING.md) · **简体中文**
 
-<!-- translated-from: .github/CONTRIBUTING.md sha256:01858563af53 -->
+<!-- translated-from: .github/CONTRIBUTING.md sha256:9a556c4aaa92 -->
 
 感谢你帮助改进 **recursive-shared-mutex**。
 
@@ -19,7 +19,7 @@ ctest --test-dir build --output-on-failure
 提交前建议再跑一遍仓库规则检查（CI 也会跑）：
 
 ```bash
-python3 scripts/check_repo_rules.py
+python3 scripts/repo_rules.py check --config repo-rules.json
 ```
 
 ## 编码规范
@@ -31,7 +31,7 @@ python3 scripts/check_repo_rules.py
 - 行为变更必须新增或更新测试
 - 在 `CHANGELOG.md` 的 `[Unreleased]`（或下一个版本段）下记录改动
 - 完整规则见 [AGENTS.md](../AGENTS.md)，其中可由程序检查的部分由
-  `scripts/check_repo_rules.py` 在 CI 中强制执行
+  RepoRules（`scripts/repo_rules.py check`）在 CI 中强制执行
 
 ## Pull request
 

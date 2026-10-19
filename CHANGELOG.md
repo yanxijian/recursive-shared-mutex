@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Translated documents now link to the matching `.zh-CN.md` page; the only cross-language link is the `[English]` switcher. The checker reports `lang-link` when a translated document points at an English page that has a translation.
 - The rule checker flags a newline between two Chinese characters in the translated documents: Markdown renders it as a space. Break after punctuation, a Latin word or inline code.
+### Changed
+
+- Repository rules are enforced by the shared [RepoRules](https://github.com/yanxijian/RepoRules)
+  checker instead of the repo-local scripts/check_repo_rules.py: the checker is vendored as
+  scripts/repo_rules.py, the policy lives in epo-rules.json, and hygiene.yml fails when the
+  vendored copy falls behind upstream. Same rules and same files; the local checker and its unit
+  tests are removed.
 ## [v0.4.1] - 2026-10-18
 
 ### Added
