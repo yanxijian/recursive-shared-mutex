@@ -130,8 +130,10 @@ Nine documents have a Simplified Chinese version next to them
 translation is a companion, never a replacement.
 
 - Both files carry a language switcher directly under the title:
-  `**English** · [简体中文](README.zh-CN.md)` on one side,
-  `[English](README.md) · **简体中文**` on the other. The checker verifies the links.
+  `**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)`
+  on one side, the same set with `**简体中文**` first on the other. README has four
+  languages (English default, then Simplified Chinese, Japanese, Korean, in that order);
+  the other translated documents are English + Simplified Chinese.
 - Each translation records the revision it came from as a content hash:
   `<!-- translated-from: README.md sha256:... -->`. A content hash, not a commit
   id, so a rebase does not invalidate every translation.
