@@ -331,5 +331,8 @@
       "\\*\\.cmd\\s+-text -eol",
       "\\*\\.sh\\s+text eol=lf"
     ]
+  },
+  "comments": {
+    "english": true
   }
 }
