@@ -2,7 +2,7 @@
 
 [English](platform-notes.md) · **简体中文**
 
-<!-- translated-from: platform-notes.md sha256:2378fc0461aa -->
+<!-- translated-from: docs/platform-notes.md sha256:2378fc0461aa -->
 
 所有数字都在同一台 Windows x64 主机上测得（争用场景 8 线程，`-O2`/`/O2`，非争用场景 2 M 次迭代）。
 绝对值与机器强相关；重要的是**比值**和通过/失败结果。`S7` 的比值取 5 轮交错 1 秒测量的中位数，

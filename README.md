@@ -4,6 +4,8 @@
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/yanxijian/recursive-shared-mutex?display_name=tag)](https://github.com/yanxijian/recursive-shared-mutex/releases)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 
 A C++17 header-only recursive `shared_mutex`. It lets a codebase move from
 `std::recursive_mutex` to reader/writer locking without first flattening every

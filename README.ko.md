@@ -2,9 +2,14 @@
 
 **한국어** · [English](README.md) · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
-<!-- translated-from: README.md sha256:5765763fdfd8 -->
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/yanxijian/recursive-shared-mutex?display_name=tag)](https://github.com/yanxijian/recursive-shared-mutex/releases)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+<!-- translated-from: README.md sha256:25ce59c3dda8 -->
 
 C++17 헤더 온리 재진입 가능 `shared_mutex`입니다. 중첩된 호출을 모두 펼치지 않고도 코드베이스를 `std::recursive_mutex`에서 읽기/쓰기 잠금으로 옮길 수 있습니다.
 
