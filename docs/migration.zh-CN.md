@@ -2,7 +2,7 @@
 
 [English](migration.md) · **简体中文**
 
-<!-- translated-from: migration.md sha256:4bac5792a713 -->
+<!-- translated-from: docs/migration.md sha256:4bac5792a713 -->
 
 ## 目标
 

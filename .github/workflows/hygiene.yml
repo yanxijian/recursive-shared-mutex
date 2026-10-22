@@ -1,8 +1,8 @@
-# Rules that do not need a compiler: line endings, translated documents, and that
-# every relative link in the documentation resolves.
+# Rules that do not need a compiler: encoding/BOM/line endings, the changelog,
+# the translated documents, and that every relative link resolves.
 #
 # This runs on *every* push and pull request, including documentation-only ones,
-# which is exactly why it is separate from ci.yml: that workflow now filters on
+# which is exactly why it is separate from ci.yml: that workflow filters on
 # build inputs and would never see a docs change.
 
 name: hygiene
@@ -24,11 +24,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check repository rules
-        run: python3 scripts/check_repo_rules.py
-      - name: Test the checker
-        # The checker is what turns AGENTS.md into a build failure, so it gets the
-        # same treatment as the library: a regression in --fix has to fail here.
-        run: python3 -m unittest discover -s scripts/tests -v
+        run: python3 scripts/repo_rules.py check --config repo-rules.json
+      - uses: actions/checkout@v4
+        with:
+          repository: yanxijian/RepoRules
+          path: .repo-rules
+      - name: Check vendored checker is current
+        run: python3 .repo-rules/repo_rules.py sync --root . --hook --check
 
   clang-format:
     name: clang-format

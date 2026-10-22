@@ -1,0 +1,355 @@
+{
+  "version": 1,
+  "skip_dirs": [
+    ".git",
+    "build",
+    "_deps",
+    "third_party",
+    "out",
+    "x64",
+    "Win32"
+  ],
+  "skip_prefixes": [
+    "build-",
+    "build_",
+    "cmake-build"
+  ],
+  "skip_globs": [],
+  "encoding": [
+    {
+      "glob": "*.c",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.cc",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.cpp",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.cxx",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.h",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.hh",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.hpp",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.hxx",
+      "bom": true,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.md",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.mdc",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "CMakeLists.txt",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.cmake",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.txt",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.json",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.yml",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.yaml",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.py",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.ps1",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.sh",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.cmd",
+      "bom": false,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.bat",
+      "bom": false,
+      "eol": "crlf"
+    },
+    {
+      "glob": "*.in",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "*.def",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": ".githooks/pre-commit",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": ".gitignore",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": ".gitattributes",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": ".editorconfig",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": ".clang-format",
+      "bom": false,
+      "eol": "lf"
+    },
+    {
+      "glob": "LICENSE",
+      "bom": false,
+      "eol": "lf"
+    }
+  ],
+  "width": {
+    "globs": [
+      "*.c",
+      "*.cc",
+      "*.cpp",
+      "*.cxx",
+      "*.h",
+      "*.hh",
+      "*.hpp",
+      "*.hxx"
+    ],
+    "limit": 140,
+    "tab_width": 4
+  },
+  "forbidden": [
+    {
+      "id": "cmake-libs",
+      "globs": [
+        "*.c",
+        "*.cc",
+        "*.cpp",
+        "*.cxx",
+        "*.h",
+        "*.hh",
+        "*.hpp",
+        "*.hxx"
+      ],
+      "pattern": "#\\s*pragma\\s+comment\\s*\\(\\s*(lib|linker)",
+      "message": "link libraries through CMake target_link_libraries"
+    }
+  ],
+  "headers": {
+    "globs": [
+      "*.h",
+      "*.hh",
+      "*.hpp",
+      "*.hxx"
+    ],
+    "first_line": "#pragma once",
+    "forbid_namespace_using": true
+  },
+  "versions": [
+    {
+      "id": "rsm-version",
+      "sources": [
+        {
+          "path": "CMakeLists.txt",
+          "pattern": "project\\s*\\([^)]*?VERSION\\s+(\\d+)\\.(\\d+)\\.(\\d+)"
+        },
+        {
+          "path": "include/recursive_shared_mutex/recursive_shared_mutex.hpp",
+          "pattern": "RSM_VERSION_MAJOR\\s+(\\d+)[\\s\\S]*?RSM_VERSION_MINOR\\s+(\\d+)[\\s\\S]*?RSM_VERSION_PATCH\\s+(\\d+)"
+        }
+      ]
+    }
+  ],
+  "changelog": {
+    "path": "CHANGELOG.md",
+    "require": "## [Unreleased]",
+    "link_definitions": true
+  },
+  "required_files": [],
+  "markdown": {
+    "globs": [
+      "*.md"
+    ],
+    "check_links": true,
+    "bilingual_pairs": [
+      [
+        "README.md",
+        "README.zh-CN.md"
+      ],
+      [
+        ".github/CONTRIBUTING.md",
+        ".github/CONTRIBUTING.zh-CN.md"
+      ],
+      [
+        ".github/SECURITY.md",
+        ".github/SECURITY.zh-CN.md"
+      ],
+      [
+        ".github/CODE_OF_CONDUCT.md",
+        ".github/CODE_OF_CONDUCT.zh-CN.md"
+      ],
+      [
+        "benchmarks/README.md",
+        "benchmarks/README.zh-CN.md"
+      ],
+      [
+        "docs/migration.md",
+        "docs/migration.zh-CN.md"
+      ],
+      [
+        "docs/platform-notes.md",
+        "docs/platform-notes.zh-CN.md"
+      ],
+      [
+        "docs/roadmap.md",
+        "docs/roadmap.zh-CN.md"
+      ],
+      [
+        "docs/validation.md",
+        "docs/validation.zh-CN.md"
+      ]
+    ],
+    "translations": {
+      "pairs": [
+        [
+          "README.md",
+          "README.zh-CN.md"
+        ],
+        [
+          ".github/CONTRIBUTING.md",
+          ".github/CONTRIBUTING.zh-CN.md"
+        ],
+        [
+          ".github/SECURITY.md",
+          ".github/SECURITY.zh-CN.md"
+        ],
+        [
+          ".github/CODE_OF_CONDUCT.md",
+          ".github/CODE_OF_CONDUCT.zh-CN.md"
+        ],
+        [
+          "benchmarks/README.md",
+          "benchmarks/README.zh-CN.md"
+        ],
+        [
+          "docs/migration.md",
+          "docs/migration.zh-CN.md"
+        ],
+        [
+          "docs/platform-notes.md",
+          "docs/platform-notes.zh-CN.md"
+        ],
+        [
+          "docs/roadmap.md",
+          "docs/roadmap.zh-CN.md"
+        ],
+        [
+          "docs/validation.md",
+          "docs/validation.zh-CN.md"
+        ]
+      ],
+      "suffix": ".zh-CN.md",
+      "marker": "translated-from:",
+      "stale": "warning",
+      "cjk_wrap": true,
+      "keep_language": true,
+      "untracked": true
+    },
+    "languages": {
+      "default": "README.md",
+      "variants": [
+        "README.zh-CN.md",
+        "README.ja.md",
+        "README.ko.md"
+      ],
+      "switch_line": true,
+      "stale": "warning"
+    }
+  },
+  "gitattributes": {
+    "path": ".gitattributes",
+    "required_patterns": [
+      "\\* text=auto eol=lf",
+      "\\*\\.cpp\\s+-text -eol",
+      "\\*\\.cmd\\s+-text -eol",
+      "\\*\\.sh\\s+text eol=lf"
+    ]
+  },
+  "comments": {
+    "english": true
+  },
+  "commit_message": {
+    "english": true
+  },
+  "readme_badges": {
+    "files": [
+      "README.md",
+      "README.zh-CN.md",
+      "README.ja.md",
+      "README.ko.md"
+    ],
+    "min": 4,
+    "require": [
+      "actions/workflows/",
+      "img.shields.io/badge/License"
+    ]
+  }
+}

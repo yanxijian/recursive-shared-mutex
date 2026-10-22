@@ -2,7 +2,7 @@
 
 [English](roadmap.md) · **简体中文**
 
-<!-- translated-from: roadmap.md sha256:f0f80a96e098 -->
+<!-- translated-from: docs/roadmap.md sha256:f0f80a96e098 -->
 
 RecursiveSharedMutex 是一个**过渡组件**：它的作用是把代码库从 `std::recursive_mutex` 带到读写锁，
 直到代码库可以去递归化。本路线图覆盖剩余的生命周期。

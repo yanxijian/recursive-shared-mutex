@@ -1,11 +1,16 @@
 # recursive-shared-mutex
 
-**简体中文** · [English](README.md)
-
-<!-- translated-from: README.md sha256:1e739ff575ba -->
+**简体中文** · [English](README.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
 [![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/yanxijian/recursive-shared-mutex?display_name=tag)](https://github.com/yanxijian/recursive-shared-mutex/releases)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+[![CI](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml/badge.svg)](https://github.com/yanxijian/recursive-shared-mutex/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+<!-- translated-from: README.md sha256:25ce59c3dda8 -->
+
 
 C++17 单头文件的递归 `shared_mutex`。它让代码库可以从 `std::recursive_mutex` 迁移到读写锁，
 而不用先把所有嵌套调用拍平。
@@ -264,8 +269,7 @@ examples/                         # 用法示例（含跨模块隐患复现）
 benchmarks/                       # 驱动、CI 自动化、已入库结果
 docs/                             # 设计、迁移、平台记录、路线图、验证
 verification/                     # soak 历史，每个已记录批次一行
-scripts/check_repo_rules.py       # AGENTS.md 承诺由 CI 执行的规则
-scripts/tests/                    # 规则检查器自身的测试
+scripts/repo_rules.py             # AGENTS.md 承诺由 CI 执行的规则（内置 RepoRules）
 cmake/                            # package config
 .github/                          # 工作流、issue/PR 模板、CONTRIBUTING / SECURITY / CODE_OF_CONDUCT
 AGENTS.md                         # 仓库规则，所有 agent 共用一份
@@ -277,8 +281,8 @@ AGENTS.md                         # 仓库规则，所有 agent 共用一份
 
 仓库规则在 [AGENTS.md](AGENTS.md)，一份文件同时服务 Claude Code、Codex、Cursor、Copilot 以及其它工具；`CLAUDE.md`、`.cursor/rules/repo.mdc` 与 `.github/copilot-instructions.md` 都指向它。
 其中可由程序检查的部分（UTF-8 BOM + CRLF、140 列、禁用 `#pragma comment(lib)`、头文件卫生、
-版本一致、changelog 段、译文档互链不得断开）由 `scripts/check_repo_rules.py` 在每次 push 时于
-CI 中执行，违规会直接让构建失败。用 `python3 scripts/check_repo_rules.py --fix` 修掉机械性问题，
+版本一致、changelog 段、译文档互链不得断开）由 RepoRules（`scripts/repo_rules.py`）在每次 push 时于
+CI 中执行，违规会直接让构建失败。用 `python3 scripts/repo_rules.py fix --config repo-rules.json` 修掉机械性问题，
 用 `git config core.hooksPath .githooks` 让检查提前到提交前。
 
 ## 安全

@@ -5,7 +5,7 @@ repository: Claude Code, Codex, Cursor, Copilot, Gemini CLI, Aider, or anything
 else. `CLAUDE.md`, `.github/copilot-instructions.md` and `.cursor/rules/repo.mdc`
 exist only to point here, so there is one place to update.
 
-Rules marked **[CI]** are enforced by `scripts/check_repo_rules.py`, which runs on
+Rules marked **[CI]** are enforced by RepoRules (`scripts/repo_rules.py`, configured in `repo-rules.json`), which runs on
 every push and pull request. Breaking one fails the build - it is not advice.
 Rules marked **[review]** need judgement and cannot be checked mechanically.
 
@@ -35,8 +35,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DRSM_BUILD_TESTS=ON -DRSM_BUILD_
 cmake --build build
 ctest --test-dir build --output-on-failure --timeout 180
 
-python3 scripts/check_repo_rules.py      # repository rules (fast, run before pushing)
-python3 -m unittest discover -s scripts/tests   # the checker's own tests
+python3 scripts/repo_rules.py check --config repo-rules.json      # repository rules (fast, run before pushing)
 clang-format --dry-run -Werror <files>   # the exact list is in .github/workflows/hygiene.yml
 ```
 
@@ -54,7 +53,7 @@ BOM** and **CRLF**, no exceptions for first-party sources.
 
 - Tools do not do this for you: `clang-format` writes CRLF (`LineEnding: CRLF`)
   but **never** writes a BOM; many editors and patch helpers silently strip it.
-- `python3 scripts/check_repo_rules.py --fix` repairs both.
+- `python3 scripts/repo_rules.py fix --config repo-rules.json` repairs both.
 - `.gitattributes` marks them `-text`, so git neither converts them on commit nor
   on checkout - the bytes in the object store are the bytes in your editor.
 
@@ -117,10 +116,10 @@ and a flip shows up as a rewrite of every line: a 200-line document becomes a
 against this table, and verifies that `.gitattributes` still declares it.
 
 - New files default to **LF**; only batch files are CRLF.
-- Rewriting a file with the wrong endings fails the build; `--fix` normalises the
+- Rewriting a file with the wrong endings fails the build; `fix` normalises the
   ones the table names.
 - Changing a file's style means changing `.gitattributes` (and, for a one-off,
-  `EOL_POLICY` in `scripts/check_repo_rules.py`) - deliberately, never as a side
+  the `encoding` table in `repo-rules.json`) - deliberately, never as a side
   effect of an edit.
 
 
@@ -131,16 +130,18 @@ Nine documents have a Simplified Chinese version next to them
 translation is a companion, never a replacement.
 
 - Both files carry a language switcher directly under the title:
-  `**English** · [简体中文](README.zh-CN.md)` on one side,
-  `[English](README.md) · **简体中文**` on the other. The checker verifies the links.
+  `**English** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md) · [한국어](README.ko.md)`
+  on one side, the same set with `**简体中文**` first on the other. README has four
+  languages (English default, then Simplified Chinese, Japanese, Korean, in that order);
+  the other translated documents are English + Simplified Chinese.
 - Each translation records the revision it came from as a content hash:
   `<!-- translated-from: README.md sha256:... -->`. A content hash, not a commit
   id, so a rebase does not invalidate every translation.
-- When the English file changes, the checker prints `STALE <file>: ...` and stays
+- When the English file changes, the checker prints a `warn ... [translation-stale]` line and stays
   green. That is deliberate: translating is real work and must not block a merge,
   but it must not go unnoticed either. Re-read the diff, update the translation,
   then update the hash.
-- The translated set is `TRANSLATED_DOCS` in `scripts/check_repo_rules.py`. Adding
+- The translated set is `markdown.translations.pairs` in `repo-rules.json`. Adding
   or removing a translation means editing that tuple - the point is that the set
   cannot silently lose an entry.
 
@@ -199,15 +200,28 @@ let the automation overwrite the desktop files.
 A newline inside a Chinese paragraph renders as a space on GitHub. Do not wrap
 between two Chinese characters; break after punctuation, a Latin word or inline
 code. This applies to the translated documents; English text may wrap normally.
-`scripts/check_repo_rules.py` reports the continuation line as `cjk-wrap`.
+RepoRules reports the continuation line as `cjk-wrap`.
 
 ### R15 - A translated document links to its own language **[CI]**
 
 A Simplified Chinese document links to the `.zh-CN.md` edition of another
 translated document, not the English one. The only cross-language link is the
 English switcher at the top (the `[English]` link). Fragments must use the translated heading
-anchor. `scripts/check_repo_rules.py` reports `lang-link` for a relative link to
+anchor. RepoRules reports `lang-link` for a relative link to
 an English document whose translation exists.
+
+### R16 - Prose is English **[review/CI]**
+
+Comments, commit messages and new README text are written in **English**. A
+quotation, a data sample or a pointer to a Chinese document heading may stay in
+its original language, marked with `cjk-ok` on that line (a comment) or anywhere
+in the message (a commit).
+
+- `comments.english` flags non-Latin script in comments; `commit_message.english`
+  rejects a non-English commit in the `commit-msg` hook. Both are configured in
+  `repo-rules.json`.
+- Deliberately **not** in scope: the translated documents themselves
+  (`*.zh-CN.md`), and the Chinese text a script prints for its user.
 
 ## Working with this repository
 
@@ -285,7 +299,7 @@ an English document whose translation exists.
 ## Releasing
 
 A release touches five places at once. Miss one and the tree disagrees with
-itself: `check_repo_rules.py` catches the version pair (R5) but nothing catches a
+itself: RepoRules catches the version pair (R5) but nothing catches a
 README that still advertises the old tag.
 
 1. **Version, both copies** (R5): `project(... VERSION x.y.z)` in `CMakeLists.txt`

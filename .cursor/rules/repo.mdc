@@ -11,7 +11,7 @@ entry point, so the rules a change can break silently are repeated here; the
 reasoning is in AGENTS.md.
 
 - C/C++ sources: **UTF-8 with BOM + CRLF**. `clang-format` writes CRLF but never
-  a BOM. Repair with `python3 scripts/check_repo_rules.py --fix`.
+  a BOM. Repair with `python3 scripts/repo_rules.py fix --config repo-rules.json`.
 - **140 columns**, tab-indented; `.clang-format` is the authority.
 - Windows libraries through `target_link_libraries`, never `#pragma comment(lib)`.
 - Headers: `#pragma once` first, no `using namespace` at namespace scope.
@@ -23,5 +23,5 @@ reasoning is in AGENTS.md.
   across threads.
 - A translated document stays linked: both files keep the language switcher, and
   `<!-- translated-from: ... sha256:... -->` records the English revision it came
-  from. `scripts/check_repo_rules.py` prints `STALE <file>` when the English side
+  from. RepoRules prints a `warn ... [translation-stale]` line when the English side
   moved on.

@@ -8,7 +8,7 @@
 #   * Windows batch files are CRLF in the object store and on checkout, the same
 #     rule as C/C++ - cmd.exe expects CRLF, and one mechanism beats two.
 #
-# `scripts/check_repo_rules.py` (R7) verifies the working tree agrees with this,
+# The vendored RepoRules checker (`scripts/repo_rules.py`, configured in repo-rules.json) verifies the working tree agrees with this,
 # so a stray editor or a careless rewrite cannot flip a whole file silently.
 
 * text=auto eol=lf
