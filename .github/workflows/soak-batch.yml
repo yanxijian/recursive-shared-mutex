@@ -90,7 +90,7 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.prepare.outputs.shards) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up MSVC
         if: runner.os == 'Windows'
@@ -152,7 +152,7 @@ jobs:
         # Also on failure: the failing seed and its ring dump are the evidence,
         # and a failed run step would otherwise skip this.
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: shard-${{ matrix.shard }}
           path: out.txt
@@ -164,10 +164,10 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Download the shard logs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: shards
 
