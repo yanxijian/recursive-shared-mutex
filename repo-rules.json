@@ -355,5 +355,16 @@
   "about": {
     "description": "C++17 header-only recursive shared_mutex for migrating from recursive_mutex to reader/writer locks | C++17 单头文件递归 shared_mutex，可从 recursive_mutex 平滑迁移到读写锁",
     "order": "en-zh"
+  },
+  "actions": {
+    "require": {
+      "actions/checkout": "v7",
+      "actions/setup-python": "v7",
+      "actions/setup-node": "v7",
+      "actions/upload-artifact": "v7",
+      "actions/download-artifact": "v8",
+      "actions/cache": "v6"
+    },
+    "allow_sha": true
   }
 }
